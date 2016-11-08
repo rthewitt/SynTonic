@@ -1,0 +1,42 @@
+html, body {
+	height: 100%;
+	font-family: Philosopher, Tahoma; 
+    background-color: #F2F2F2;
+}
+
+body { 
+    overflow-y: hidden;
+    padding-top: 20px; 
+    width: 4705px; 
+}
+
+nav {
+	font-family: Philosopher, Tahoma; 
+}
+
+nav.left {
+	position: fixed;
+	left: 0px;
+	margin: 0px 0px 0px 20px;
+}
+nav.right {
+	position: fixed;
+	right: 0px;
+	margin: 0px 20px 0px 0px;
+}
+
+.options {
+    display: block;
+    color: #337ab7;
+}
+
+.options input[type=checkbox] {
+    margin-right: 5px;
+}
+
+#scoreboard {
+    display: block;
+    margin-top: 450px;
+    margin-left: 300px;
+    width: 1200px;
+}

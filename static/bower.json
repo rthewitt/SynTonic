@@ -1,0 +1,13 @@
+{
+    "name": "syntonic",
+    "version": "0.0.1",
+    "dependencies": {
+        "jquery": "1.11",
+        "marionette": null,
+        "backbone": null,
+        "bootstrap": null,
+        "underscore": null,
+        "mustache": null,
+        "requirejs": null
+    }
+}
