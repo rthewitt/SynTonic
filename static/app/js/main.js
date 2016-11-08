@@ -46,7 +46,9 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             // timeouts that make sense for the instrument
             // This should be moved into the UI, because the timeouts make no sense
             var isConnected = false;
-            var midi = null;
+
+            var midi = null,
+                midiOut = null;
 
             var startGame, 
                 stopGame, 
@@ -65,11 +67,24 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                     // TODO add these to dropdown of some sort
                     for (var entry of midi.inputs) {
                         var input = entry[1];
-                        console.log('found midi input ' + input.name);
+                        console.log('found midi input ' + input.name + ' ::: ' + input.id);
+                        if(input.id === 'D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67') {
+                            console.log('TODO create a dropdown select for input/output');
+                            input.onmidimessage = onMIDIMessage;
+
+                            // FIXME this is all hackery
+                            isConnected = true; 
+                            $('#is-connected').prop('checked', 'checked');
+                        }
                     }
                     for (var entry of midi.outputs) {
                         var output = entry[1];
-                        console.log('found midi output ' + output.name);
+                        console.log('OUTPUT ' + output.name + ' ::: ' + output.id);
+                        if(output.id === '37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A') {
+                            output.open();
+                            midiOut = output;
+                            $('#use-instrument').prop('checked', 'checked');
+                        }
                     }
                 }
 
@@ -119,66 +134,8 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 startGame.on('click', onGameStartPress);
                 stopGame.on('click', onGameStopPress);
 
-                function handleCommand(command) {
-                    switch(command) {
-                        case 'on':
-                            $('#'+key.id).addClass('pressed');
-                            if(!!game) game.playerInput(key);
-                            break;
-                        case 'off':
-                            $('#'+key.id).removeClass('pressed');
-                            break;
-                    }
-                }
 
                 ws = new WebSocket('ws://localhost:8888');
-                ws.onmessage = function(ev) {
-                    //console.log(JSON.parse(ev.data));
-                    if(ev.data instanceof Blob) {
-                        if(ev.data.size !== 3) {
-                            console.log('This buffer is not expected length...');
-                            return;
-                        }
-
-                        var reader = new FileReader();
-                        reader.onload = function(e) {
-                            //console.log(reader.result);
-                            var midiBuffer = reader.result;
-                            console.log("byte length "+midiBuffer.byteLength);
-                            var midiData = new Uint8Array(midiBuffer);
-
-                            var command;
-
-                            var first = midiData[0],
-                                note = midiData[1],
-                                velocity = midiData[2];
-
-                            if(first == 0x90) {
-                                command = velocity == 0x0 ? 'off' : 'on';
-
-                            } else if(first == 0x80) command = 'off';
-                            else command = 'unknown command';
-
-                            console.log(command);
-                            console.log(note);
-                            console.log(velocity);
-
-                            key = keyboard.keys[note-keyboard.min];
-
-                            switch(game.state) {
-                                case gameStates.ANIMATING:
-                                    break;
-                                case gameStates.INPUT_CONTROL:
-                                    alert('TODO');
-                                    break;
-                                default:
-                                    handleCommand(command);
-                                    break;
-                            }
-                        }
-                        reader.readAsArrayBuffer(ev.data);
-                    }
-                };
 
             }
 
@@ -397,10 +354,8 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
             // TODO get the output - how often to do this?
             function sendMidiNote( noteId, duration ) {
-                duration = duration || 500.0;
-                var output = midi.outputs.get('-779048262');
-                console.log('OUTPUT ' + output.name);
-                output.open();
+                duration = duration || 750.0;
+                var output = midiOut; // TODO
                 output.send( [0x90, noteId, 0x7f] );  // full velocity
                 output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
             }
@@ -431,7 +386,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                     if(audioChannels[a]['finished'] < now.getTime()) { // is this channel finished?
                         
                         try {		
-                            audioChannels[a]['finished'] = now.getTime() + document.getElementById(s).duration*1000;
+                            audioChannels[a]['finished'] = now.getTime() + 1000;
                             audioChannels[a]['channel'] = document.getElementById(s);
                             audioChannels[a]['channel'].currentTime = 0;
                             audioChannels[a]['channel'].volume=1;
@@ -520,6 +475,62 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             // so we need to ensure that a default stragey like web audio is present
             function soundBuzzer() {
                 play_multi_sound('buzzer');
+            }
+
+            
+            // Why does this stuff exist again?
+
+            function handleCommand(command) {
+                switch(command) {
+                    case 'on':
+                        $('#'+key.id).addClass('pressed');
+                        playNote(key);
+                        if(!!game) game.playerInput(key);
+                        break;
+                    case 'off':
+                        $('#'+key.id).removeClass('pressed');
+                        break;
+                }
+            }
+
+            function onMIDIMessage( event ) {
+                // Uint8Array?
+                var midiData = event.data;
+
+                var command;
+
+                var first = midiData[0],
+                    note = midiData[1],
+                    velocity = midiData[2];
+
+                if(first == 0x90) {
+                    command = velocity == 0x0 ? 'off' : 'on';
+
+                } else if(first == 0x80) command = 'off';
+                else command = 'unknown command';
+
+                console.log(command);
+                console.log(note);
+                console.log(velocity);
+
+                key = keyboard.keys[note-keyboard.min];
+                
+                // FIXME game should be created?
+                if(!game) {
+                    handleCommand(command); 
+                    return;
+                }
+
+                switch(game.state) {
+                    case gameStates.ANIMATING:
+                        break;
+                    case gameStates.INPUT_CONTROL:
+                        alert('TODO');
+                        break;
+                    default:
+                        handleCommand(command);
+                        break;
+                }
             }
 
 
