@@ -25,6 +25,12 @@ require.config({
  * it is also behavior encapsulation.
  */
 
+// TODO we need a graphical indicator of WHEN to press the key, for melody especially
+// FIXME now that keypresses result in handleCommand, no keyup is displayed - what was previous logic?
+// FIXME on game success, we need to create another one if it is destroyed
+// TODO if no game exists (whut) pass handleCommand to the keyboard - requires that I move all music handling into keyboard first
+// TODO rename ui::clear to indicate that it only clears keyboard keys, NOT score meter or other game related information
+// FIXME melody game stop results in hanging activated notes
 
 require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game', './keyboard',
         './dispatcher', './util', './config',
@@ -50,15 +56,15 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             var midi = null,
                 midiOut = null;
 
-            var startGame, 
-                stopGame, 
+            var stopGame, 
+                gameSelect, 
                 scoreMeter;
 
 
             function startPianoApp() {
 
-                startGame = $('#start-game');
                 stopGame = $('#stop-game');
+                gameSelect = $('#game-type');
                 scoreMeter = $('#score-meter');
 
                 setupGameEvents();
@@ -99,28 +105,29 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 }
 
                 // for system exclusive messages, pass opts: { sysex: true }
-                navigator.requestMIDIAccess({ sysex: true }).then(onMidiSuccess, onMidiFailure);
+                navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
 
 
                 $(".white, .black").mousedown(function (ev) {
+                    if(!game) return;
                     toneId = $(this).attr('id');
                     var key = keyboard.keysById[toneId];
 
-                    if(!!game) {
-                        if(!!game) game.playerInput(key);
-                        switch(game.state) {
-                            case gameStates.ANIMATING:
-                                ev.stopPropagation();
-                                ev.preventDefault();
-                                break;
-                            case gameStates.INPUT_CONTROL:
-                                alert('TODO');
-                                break;
-                            default:
-                                playNote(key);
-                                break;
-                        }
-                    } else playNote(key);
+                    // TODO remove state here, should be internal to game
+                    // always just handle the command, pass through the input
+                    console.log('game state is ' + game.state);
+                    switch(game.state) {
+                        case gameStates.ANIMATING:
+                            ev.stopPropagation();
+                            ev.preventDefault();
+                            break;
+                        case gameStates.INPUT_CONTROL:
+                            handleCommand('option', key);
+                            break;
+                        default:
+                            handleCommand('on', key);
+                            break;
+                    }
                  });
 
 
@@ -131,23 +138,23 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                  });
 
 
-                startGame.on('click', onGameStartPress);
+                gameSelect.on('change', onGameSelect);
                 stopGame.on('click', onGameStopPress);
-
 
                 ws = new WebSocket('ws://localhost:8888');
 
+                // ensure game is created on page load
+                gameSelect.trigger('change');
             }
 
 
             // TODO FIXME stop all notes playing (has race condition, or lack of delay)
             // maybe try using a callback after failure
             // This will be a view later
-            function onGameStartPress(ev) { 
-                startGame.hide();
+            function onGameSelect(ev) { 
                 if(!!game) delete game;
 
-                var gType = parseInt($('#game-type').val());
+                var gType = parseInt(this.value);
                 var gameOpts = {
                     keyboard: keyboard,
                     connected: isConnected
@@ -164,18 +171,14 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                         game = GameMaker.createAptitudeGame(gameOpts);
                         break;
                 }
-                stopGame.show();
-                game.start();
             }
 
 
             function onGameStopPress(ev) { 
-                    if(!!game) {
-                        game.stop();
-                        delete game;
-                        stopGame.hide();
-                        startGame.show();
-                    }
+                if(!!game) {
+                    game.reset();
+                    stopGame.hide();
+                }
             }
 
 
@@ -227,9 +230,8 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
             function setupGameEvents() {
 
-                // TODO view will have a form, all model change listeners
                 dispatcher.on('game::score', function(score) {
-                    console.log('cur: '+score.current + '\nmax: '+score.max);
+                    //console.log('cur: '+score.current + '\nmax: '+score.max);
                     var p = Math.round(100 * (score.current / score.max));
                     console.log(p);
                     scoreMeter.css('width', ''+p+'%');
@@ -249,6 +251,9 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                     }
                 });
 
+                dispatcher.on('game::start', function(ev) {
+                    stopGame.show();
+                });
 
                 // TODO either get a smaller more pleasant sound, or use the following technique to cut it short
                 // http://stackoverflow.com/questions/5932412/html5-audio-how-to-play-only-a-selected-portion-of-an-audio-file-audio-sprite
@@ -268,31 +273,13 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
                     playNotes(keyboard.keys, 5000.0);
 
-                    // I gather that:
-                    // There was a bug were I was unable to stop the audio
-                    // I cannot verfiy this and the stop is set to 5 seconds
-                    // which was either a mistake or a response to long press
-                    // comment suggested I could distract the user
-                    // FIXME we could avoid this timing business if STOP
-                    // event handled both the UI and the audio clear
-                    // this onFinish smells like callback hell
                     setTimeout(function() {
-                        dispatcher.trigger('ui::reset');
-                        ev.onFinish();
+                        game.reset();
                     }, 5000);
 
                 });
 
-
-                dispatcher.on('ui::reset', function() {
-                    stopGame.hide();
-                    startGame.show();
-                    clearKeys();
-                });
-
-
                 dispatcher.on('ui::clear', clearKeys);
-
 
                 dispatcher.on('key::success', function(data) {
                     colorKeys([ data.key ], 'success');
@@ -341,7 +328,6 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                     keyRange = _.range(Math.floor((kb.max-kb.min)/2), kb.max-kb.min + 1);
 
                     var cb = function() {
-                        startGame.show();
                         ev.onFinish();
                     };
                     playNotesRecursive(keyRange, 'pressed success', cb);
@@ -480,8 +466,13 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             
             // Why does this stuff exist again?
 
-            function handleCommand(command) {
+            // TODO make this a part of game, game should handle it's own command
+            function handleCommand(command, key) {
                 switch(command) {
+                    case 'option': // selecting an option (such as start game)
+                        $('#'+key.id).addClass('pressed');
+                        if(!!game) game.playerInput(key);
+                        break;
                     case 'on':
                         $('#'+key.id).addClass('pressed');
                         playNote(key);
@@ -494,6 +485,8 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             }
 
             function onMIDIMessage( event ) {
+                if(!game) return;
+
                 // Uint8Array?
                 var midiData = event.data;
 
@@ -505,7 +498,6 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
                 if(first == 0x90) {
                     command = velocity == 0x0 ? 'off' : 'on';
-
                 } else if(first == 0x80) command = 'off';
                 else command = 'unknown command';
 
@@ -515,20 +507,16 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
                 key = keyboard.keys[note-keyboard.min];
                 
-                // FIXME game should be created?
-                if(!game) {
-                    handleCommand(command); 
-                    return;
-                }
-
+                // TODO remove external switch on game state, should be handled by the game
                 switch(game.state) {
                     case gameStates.ANIMATING:
                         break;
                     case gameStates.INPUT_CONTROL:
-                        alert('TODO');
+                        if(command === 'on') command = 'option';
+                        handleCommand(command, key);
                         break;
                     default:
-                        handleCommand(command);
+                        handleCommand(command, key);
                         break;
                 }
             }

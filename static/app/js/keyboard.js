@@ -7,6 +7,7 @@ define(['./dispatcher', 'underscore'], function(dispatcher, _) {
     var noteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
     var octaveIds = ['00','0','1','2','3','4','5','6','7']; // string on purpose 
 
+    // TODO MIDDLE C SHOULD BE A KEY, NOT ID
     var MIDDLE_OCTAVE = '3',
         MIDDLE_C = '3C';
 

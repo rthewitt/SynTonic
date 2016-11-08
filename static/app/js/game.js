@@ -24,8 +24,6 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.type = undefined;
         this.round = undefined;
 
-        this.state = state.NOT_STARTED;
-
         // will experiment with moving target scores
         // trying static 20 goal for now
         this.baseScore = 9;
@@ -34,6 +32,8 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.threshold = opts.threshold || 30;
 
         // How long before we present the next challenge?
+        // in Aptitude / pitch training noteDelay also determines how long between
+        // notes activation and challenge note is sounded
         this.noteDelay = typeof opts.noteDelay !== 'undefined' ? opts.noteDelay : 500;
         this.soundNotes = typeof opts.soundNotes === 'boolean' ? opts.soundNotes : true;
 
@@ -43,12 +43,18 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.toPlay = [];
         this.qMax = opts.numNotes || 3;
         this.timeout = opts.timeout;
+
+        this.reset(); // put into input state
     }
 
 
     Game.prototype.start = function() {
-        this.reset();
+        this.clear();
+        dispatcher.trigger('ui::clear'); // only clears keypresses, TODO rename
+        this.state = state.STARTED;
+        this.score = this.baseScore;
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
+        dispatcher.trigger('game::start'); // TODO fire this or additional event during the option click to start-game, so that UI can show that game is starting up
         this.next();
     }
 
@@ -66,8 +72,12 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
         var self = this;
         dispatcher.trigger('game::timeout', { onReady: function() {
-            self.state = state.STARTED;
-            self.next();
+            // We may have reset the game. This is not an optimial solution
+            // We want to avoid this state checking.
+            if( self.state === state.ANIMATING ) {
+                self.state = state.STARTED;
+                self.next();
+            }
         } });
     }
 
@@ -94,14 +104,22 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.clear();
         this.state = state.ANIMATING;
         var self = this;
-        // FIXME setting the state to lost on callback is CODE SMELL
-        dispatcher.trigger('game::lost', { onFinish: function() {
-            self.state = state.LOST;
-        } });
+        dispatcher.trigger('game::lost');
     };
 
-    // this is ** check ** player input (Currently)
+    // TODO conver this into full fledged state based logic
     Game.prototype.playerInput = function(key) {
+        console.log('received');
+        if(this.state === state.INPUT_CONTROL) {
+            if(key.id == this.keyboard.MIDDLE_C) {
+                var self = this;
+                setTimeout(function() {
+                    self.start();
+                }, 1000);
+            }
+            return;
+        }
+
         if(this.timer === null) return;
         var correct = this.toPlay.length > 0 && 
             key.id == this.toPlay[0].id ? true : false;
@@ -120,6 +138,9 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
         if(success) {
             var justPlayed = this.toPlay.shift();
+
+            // I think variable was because when a correct note was played (and subsequently turned green)
+            // the UI would clear
             var shouldWait = _.some(this.toPlay, function(key) { return key.id === justPlayed.id; });
             if(!shouldWait) {
                 dispatcher.trigger('ui::clear', { keys: [ justPlayed ] });
@@ -149,7 +170,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
      * or UI directly - so we schedule a request
      */
     Game.prototype.schedule = function() {
-        // we should implement the server side of this too
+        // IIRC this default method schedules in a "melody-like" fashion, one after another with delay
         for(var i=0; i < this.toPlay.length; i++) { 
             dispatcher.trigger('game::activate', { keys: [ this.toPlay[i] ], when: (i+1) * this.noteDelay, sound: this.soundNotes });
         }
@@ -183,17 +204,43 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
             clearTimeout(this.timer);
             this.timer = null;
         }
+        // if I add ui::clear to this, I should remove it from reset, etc
+        // will I ever want to clear the milestone / game WITHOUT ui clear?
     };
 
+    
+    // FIXME clears existing timer, but not next?
     Game.prototype.reset = function() {
-        this.clear();
-        this.score = this.baseScore;
+        this.clear(); // does not clear score, is only used to clear game timer
+        this.score = 0; // is there a better place for this?
+        dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
+        dispatcher.trigger('ui::clear'); 
+        this.state = state.INPUT_CONTROL;
     };
 
-    Game.prototype.stop = function() {
-        this.clear();
-        dispatcher.trigger('ui::clear');
+    
+    /* TODO
+     * IMPORTANT:
+     * this function is overridden because we want to put the game
+     * into an animating state and then start a second period in which
+     * the game is actually awaiting user input. We are going to hack
+     * that behavior by using a custom next function but this change
+     * should be backported, where a normal game neglects to do so.
+     */
+    function MELODY_next() {
+        this.generate(this.qMax);
+        this.state = state.ANIMATING;
+        this.schedule();
+        var ignorePlayerInputTime = this.noteDelay*(this.toPlay.length+1) // after the last note is played
+        var self = this;
+        setTimeout(function() {
+            if(self.state === state.ANIMATING) { // may have been reset
+                self.state = state.STARTED; // allow user input again
+                self.timer = setTimeout(function() { handleTimeout.call(self) }, self.timeout);
+            }
+        }, ignorePlayerInputTime);
     };
+
 
     /*
      *
@@ -348,6 +395,8 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         game.type = types.MELODY;
 
         game.generate = MELODY_generate;
+        // TODO remove this once we subsume user-input behavior
+        game.next = MELODY_next;
         return game;
     }
 
