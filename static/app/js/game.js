@@ -38,13 +38,22 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.soundNotes = typeof opts.soundNotes === 'boolean' ? opts.soundNotes : true;
 
         this.keyboard = opts.keyboard;
-        this.isConnected = opts.connected || false;
         this.timer = null;
         this.toPlay = [];
         this.qMax = opts.numNotes || 3;
         this.timeout = opts.timeout;
 
         this.reset(); // put into input state
+
+        dispatcher.on('key::press', this.playerInput, this);
+        //dispatcher.on('key::release', function(key) { }, this);
+    }
+
+
+    // avoid memory leaks!
+    Game.prototype.cleanup = function() {
+        dispatcher.off('key::press', this.playerInput);
+        //dispatcher.off('key::release'...)
     }
 
 
@@ -52,11 +61,13 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.clear();
         dispatcher.trigger('ui::clear'); // only clears keypresses, TODO rename
         this.state = state.STARTED;
+        this.keyboard.silent = false;
         this.score = this.baseScore;
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
         dispatcher.trigger('game::start'); // TODO fire this or additional event during the option click to start-game, so that UI can show that game is starting up
         this.next();
     }
+
 
     // must be called with context
     function handleTimeout() {
@@ -83,6 +94,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
 
     Game.prototype.next = function() {
+        console.log('game BASIC next function');
         this.generate(this.qMax);
         this.schedule();
         var self = this;
@@ -107,9 +119,8 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         dispatcher.trigger('game::lost');
     };
 
-    // TODO conver this into full fledged state based logic
+
     Game.prototype.playerInput = function(key) {
-        console.log('received');
         if(this.state === state.INPUT_CONTROL) {
             if(key.id == this.keyboard.MIDDLE_C) {
                 var self = this;
@@ -170,6 +181,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
      * or UI directly - so we schedule a request
      */
     Game.prototype.schedule = function() {
+        console.log('apt BASIC schedule');
         // IIRC this default method schedules in a "melody-like" fashion, one after another with delay
         for(var i=0; i < this.toPlay.length; i++) { 
             dispatcher.trigger('game::activate', { keys: [ this.toPlay[i] ], when: (i+1) * this.noteDelay, sound: this.soundNotes });
@@ -216,6 +228,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
         dispatcher.trigger('ui::clear'); 
         this.state = state.INPUT_CONTROL;
+        this.keyboard.silent = true;
     };
 
     
@@ -286,6 +299,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
      * Will generate only C notes for round 1
      */
     function APT_generate(num) {
+        console.log('apt custom GENERATE');
 
         var cKeys = this.keyboard.keysByNote['C'],
             max = cKeys.length; // exclusive
@@ -299,6 +313,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
     // activate group (octave or keys)
     function APT_schedule() {  
+        console.log('apt CUSTOM schedule');
         if(this.toPlay.length !== 1) 
             throw new Exception("Too many notes queued");
 
@@ -307,6 +322,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
         // must guarantee order
         setTimeout(function() {
+            console.log('want to activate '+maskedKeys.length+'  keys');
             dispatcher.trigger('game::activate', { keys: maskedKeys });
             dispatcher.trigger('game::activate', { keys: [ key ], sound: true });
         }, this.noteDelay);
@@ -367,15 +383,12 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
 
     function _createAptitudeGame(opts) {
-        function G() {};
         opts.numNotes = 1; // force single note play
-
         opts.reward = 1;
         opts.penalty = 3;
         opts.threshold = 20;
 
-        G.prototype = new Game(opts);
-        var game = new G;
+        var game = new Game(opts);
         game.type = types.APT;
         game.timeout = game.timeout || 4000; // let them think
 
@@ -389,7 +402,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
     function _createMemoryGame(opts) {
         opts.numNotes = opts.numNotes || 3;
         opts.timeout = opts.timeout || 
-            (opts.numNotes * (opts.connected ? 3000 : 2000));
+            (opts.numNotes * (opts.keyboard.output ? 3000 : 2000));
 
         var game = new Game(opts);
         game.type = types.MELODY;
@@ -406,7 +419,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
     // if possible...
     function _createFlowGame(opts) {
         opts.numNotes = 1;
-        opts.timeout = opts.timeout || (opts.connected ? 3000 : 1000); 
+        opts.timeout = opts.timeout || (opts.keyboard.output ? 3000 : 1000); 
         opts.noteDelay = 0;
         opts.soundNotes = false;
 

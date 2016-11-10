@@ -1,4 +1,4 @@
-define(['./dispatcher', 'underscore'], function(dispatcher, _) {
+define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio) {
 
     // TODO add a sortable to keys such that keys are sorted by keyboard order?
     // would allow me to get keys by octave and ensure correct layout for random
@@ -63,6 +63,10 @@ define(['./dispatcher', 'underscore'], function(dispatcher, _) {
 
     function Keyboard(opts) {
 
+        this.midiOut = null;
+        this.output = false; // TODO make this an actual MIDI output, not boolean
+        this.silent = false; // currently game controls whether we make a noise
+
         this.numKeys = opts.numKeys || 88;
         this.min = opts.min || 21;
         this.max = opts.max || 108;
@@ -94,12 +98,72 @@ define(['./dispatcher', 'underscore'], function(dispatcher, _) {
         _.each(this.octaves, function(oct) {
             self.keysByOctaveId[oct.id] = oct.keys;
         });
+
+        // handle keys
+        dispatcher.on('key::press', function(key) {
+            $('#' + key.id).addClass('pressed');
+            if(!self.silent) self.playNote(key);
+        });
+        dispatcher.on('key::release', function(key) {
+            $('#' + key.id).removeClass('pressed');
+            if(!self.silent) self.stopNote(key); // how to handle this?
+        });
     }
 
 
     Keyboard.prototype.idxOfId = function(keyId) {
         return this.keys.indexOf(this.keysById[keyId]);
     };
+
+
+    Keyboard.prototype.playNote = function(key, duration) {
+        if(this.output) {
+            console.log('MIDI OUTPUT');
+            var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
+            sendMidiNote(midiNote, duration)
+        } else {
+            audio.playSound('tone-'+key.id); 
+            // stop sound if requested
+            if(!!duration) {
+                setTimeout(function() {
+                    audio.stopSound('tone-'+key.id);
+                }, duration);
+            }
+        }
+    }
+
+    // These notes are played simultaneously (WARNING: approximate!!)
+    Keyboard.prototype.playNotes = function(keys, duration) {
+        if(this.output) {
+            _.each(keys, function(key) {
+                var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
+                sendMidiNote(midiNote, duration)
+            });
+        } else {
+            // play web audio
+            _.each(keys, function(key) {
+                audio.playSound('tone-'+key.id); 
+            });
+            // hard stop if requested
+            if(!!duration) {
+                setTimeout(function() {
+                    _.each(keys, function(key) {
+                        audio.stopSound('tone-'+key.id); 
+                    });
+                }, duration);
+            }
+        }
+    }
+
+
+    // TODO get the output - how often to do this?
+    function sendMidiNote( noteId, duration ) {
+        duration = duration || 750.0;
+        var output = midiOut; // TODO
+        output.send( [0x90, noteId, 0x7f] );  // full velocity
+        output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
+    }
+
 
     // exports
     return Keyboard;

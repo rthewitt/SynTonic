@@ -18,25 +18,17 @@ require.config({
 });
 
 
-/*
- * TODO 
- * Move this webaudio and webmidi and agnostic function cruft into the keyboard object
- * let the keyboard handle itself, it isn't just an immutable data structure
- * it is also behavior encapsulation.
- */
-
 // TODO we need a graphical indicator of WHEN to press the key, for melody especially
-// FIXME now that keypresses result in handleCommand, no keyup is displayed - what was previous logic?
+// FIXME no keyup is displayed - what was previous logic?
 // FIXME on game success, we need to create another one if it is destroyed
-// TODO if no game exists (whut) pass handleCommand to the keyboard - requires that I move all music handling into keyboard first
 // TODO rename ui::clear to indicate that it only clears keyboard keys, NOT score meter or other game related information
 // FIXME melody game stop results in hanging activated notes
 
 require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game', './keyboard',
-        './dispatcher', './util', './config',
+        './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap'
-        ], function($, _, Backbone, Marionette, Mustache, GameMaker, Keyboard, dispatcher, util, config) {
+        ], function($, _, Backbone, Marionette, Mustache, GameMaker, Keyboard, dispatcher, audio, util, config) {
 
 
             var game = null;
@@ -48,13 +40,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             var games = util.gameTypes,
                 gameStates = util.gameStates;
 
-            // This comes into play during game construction to set up
-            // timeouts that make sense for the instrument
-            // This should be moved into the UI, because the timeouts make no sense
-            var isConnected = false;
-
-            var midi = null,
-                midiOut = null;
+            var midi = null;
 
             var stopGame, 
                 gameSelect, 
@@ -78,8 +64,6 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                             console.log('TODO create a dropdown select for input/output');
                             input.onmidimessage = onMIDIMessage;
 
-                            // FIXME this is all hackery
-                            isConnected = true; 
                             $('#is-connected').prop('checked', 'checked');
                         }
                     }
@@ -88,7 +72,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                         console.log('OUTPUT ' + output.name + ' ::: ' + output.id);
                         if(output.id === '37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A') {
                             output.open();
-                            midiOut = output;
+                            keyboard.midiOut = output;
                             $('#use-instrument').prop('checked', 'checked');
                         }
                     }
@@ -109,37 +93,30 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
 
                 $(".white, .black").mousedown(function (ev) {
-                    if(!game) return;
-                    toneId = $(this).attr('id');
-                    var key = keyboard.keysById[toneId];
 
-                    // TODO remove state here, should be internal to game
-                    // always just handle the command, pass through the input
-                    console.log('game state is ' + game.state);
-                    switch(game.state) {
-                        case gameStates.ANIMATING:
-                            ev.stopPropagation();
-                            ev.preventDefault();
-                            break;
-                        case gameStates.INPUT_CONTROL:
-                            handleCommand('option', key);
-                            break;
-                        default:
-                            handleCommand('on', key);
-                            break;
-                    }
+                    var toneId = $(this).attr('id'),
+                        key = keyboard.keysById[toneId];
+
+                    // ignore any input while game is animating
+                    if(!!game && game.state === gameStates.ANIMATING) {
+                        ev.stopPropagation();
+                        ev.preventDefault();
+                    } else dispatcher.trigger('key::press', key);
                  });
 
 
-                // TODO understand the audio channels, and why stop is broken
                 $(".white").mouseup(function () {
-                    toneId = $(this).attr('id');
-                        //stop_multi_sound('tone-'+toneId, 'mouse');
+                    var toneId = $(this).attr('id'),
+                        key = keyboard.keysById[toneId];
+                    //dispatcher.trigger('key::release', key);
                  });
 
 
                 gameSelect.on('change', onGameSelect);
                 stopGame.on('click', onGameStopPress);
+                $('#use-instrument').change(function() {
+                    keyboard.output = $(this).prop('checked');
+                });
 
                 ws = new WebSocket('ws://localhost:8888');
 
@@ -152,12 +129,14 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             // maybe try using a callback after failure
             // This will be a view later
             function onGameSelect(ev) { 
-                if(!!game) delete game;
+                if(!!game) {
+                    game.cleanup(); // avoid memory leaks
+                    delete game;
+                }
 
                 var gType = parseInt(this.value);
                 var gameOpts = {
-                    keyboard: keyboard,
-                    connected: isConnected
+                    keyboard: keyboard
                 };
 
                 switch(gType) {
@@ -199,7 +178,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                             clearKeys( { keys: [ key ] } );
                         }, 80);
                     }
-                    playNote(key);
+                    keyboard.playNote(key);
                     setTimeout(function() {
                         playNotesRecursive(q, clazz, cb);
                     },40);
@@ -271,7 +250,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                     allKeys.removeClass('waiting');
                     allKeys.addClass('failure pressed');
 
-                    playNotes(keyboard.keys, 5000.0);
+                    keyboard.playNotes(keyboard.keys, 5000.0);
 
                     setTimeout(function() {
                         game.reset();
@@ -302,21 +281,11 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
 
                 // Activate in this context means play the note(s) and color them (currently yellow)
                 dispatcher.on('game::activate', function(data) {
+                    console.log('should activate '+data.keys.length+' keys');
+                    data.keys.forEach(function(k){ console.log(k);});
                     setTimeout(function() { 
                         colorKeys(data.keys, 'waiting'); 
-                        if(data.sound) {
-                            console.log($('#use-instrument').prop('checked'));
-                            if($('#use-instrument').prop('checked')) {
-                                _.each(data.keys, function(key) {
-                                    var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
-                                    sendMidiNote(midiNote)
-                                });
-                            } else {
-                                _.each(data.keys, function(key) {
-                                    play_multi_sound('tone-'+key.id); 
-                                });
-                            }
-                        }
+                        if(data.sound) keyboard.playNotes(data.keys);
                     }, (data.when || 0));
                 });
 
@@ -334,163 +303,21 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 });
             }
 
-            // ===========================
-            // WEB MIDI API AND FUNCTIONS
-            // ===========================
-
-            // TODO get the output - how often to do this?
-            function sendMidiNote( noteId, duration ) {
-                duration = duration || 750.0;
-                var output = midiOut; // TODO
-                output.send( [0x90, noteId, 0x7f] );  // full velocity
-                output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
-            }
-
-            // ===========================
-            // WEB AUDIO API AND FUNCTIONS
-            // ===========================
-            
-            var channel_max = 32;										// number of channels
-            audioChannels = new Array();
-
-            for (var a=0;a<channel_max;a++) {									// prepare the channels
-                audioChannels[a] = new Array();
-                audioChannels[a]['channel'] = new Audio();						// create a new audio object
-                audioChannels[a]['finished'] = -1;							// expected end time for this channel
-                audioChannels[a]['keyvalue'] = '';
-            }
-
-
-
-            // Why is this in underscore notation?
-            // TODO answer questions
-            // 1) when do I want multisound vs MIDI play?
-            // 2) can WebAudio listen to MIDI Api to avoid low-level play?
-            function play_multi_sound(s) {
-                for (var a=0; a < audioChannels.length; a++) { 
-                    var now = new Date(); 
-                    if(audioChannels[a]['finished'] < now.getTime()) { // is this channel finished?
-                        
-                        try {		
-                            audioChannels[a]['finished'] = now.getTime() + 1000;
-                            audioChannels[a]['channel'] = document.getElementById(s);
-                            audioChannels[a]['channel'].currentTime = 0;
-                            audioChannels[a]['channel'].volume=1;
-                            audioChannels[a]['channel'].play();
-                            audioChannels[a]['keyvalue'] = s; 
-                        } catch(v) {
-                            console.log(v.message); 
-                        }
-                        break;
-                    }
-                }
-            }
-
-
-            function channelStop(idx, when, dropVolume) {
-                if(dropVolume) audioChannels[a]['channel'].volume=0;
-                setTimeout(function() {
-                    try {
-                        audioChannels[idx]['channel'].pause()
-                        audioChannels[idx]['channel'].currentTime = 0;
-                    } catch(ex) { console.log(ex); }
-                }, when);
-            }
-
-            function stop_multi_sound(s, sender) { 
-                for (var a=0; a < audioChannels.length; a++) { 
-                    if (audioChannels[a]['keyvalue'] == s) { // is this channel finished?
-                        try { 
-                            audioChannels[a]['channel'] = document.getElementById(s);
-                            var wasMouse = sender != undefined && sender == 'mouse';
-                            channelStop(a, wasMouse ? 2500 : 500, wasMouse);
-                        } catch(v) {	
-                            console.log(v.message); 
-                        }
-                        break;
-                    }
-                }
-            }
-
-            // ===========================
-            // API AGNOSTIC FUNCTIONS
-            // ===========================
-            // duplication for optimization on check
-            // soon this check will be uncecessary (read synth source code)
-
-            function playNote(key, duration) {
-                if($('#use-instrument').prop('checked')) {
-                    var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
-                    sendMidiNote(midiNote, duration)
-                } else {
-                    play_multi_sound('tone-'+key.id); 
-                    // stop sound if requested
-                    if(!!duration) {
-                        setTimeout(function() {
-                            stop_multi_sound('tone-'+key.id);
-                        }, duration);
-                    }
-                }
-            }
-
-            // These notes are played simultaneously (WARNING: approximate!!)
-            function playNotes(keys, duration) {
-                if($('#use-instrument').prop('checked')) {
-                    _.each(keys, function(key) {
-                        var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
-                        sendMidiNote(midiNote, duration)
-                    });
-                } else {
-                    // play web audio
-                    _.each(keys, function(key) {
-                        play_multi_sound('tone-'+key.id); 
-                    });
-                    // hard stop if requested
-                    if(!!duration) {
-                        setTimeout(function() {
-                            _.each(keys, function(key) {
-                                stop_multi_sound('tone-'+key.id); 
-                            });
-                        }, duration);
-                    }
-                }
-            }
 
             // TODO: consider if a timeout sound makes sense for keyboard
             // when I support different sorts, may only have one octave
             // so we need to ensure that a default stragey like web audio is present
             function soundBuzzer() {
-                play_multi_sound('buzzer');
+                console.log('buzzer');
+                audio.playSound('buzzer');
             }
 
             
             // Why does this stuff exist again?
 
-            // TODO make this a part of game, game should handle it's own command
-            function handleCommand(command, key) {
-                switch(command) {
-                    case 'option': // selecting an option (such as start game)
-                        $('#'+key.id).addClass('pressed');
-                        if(!!game) game.playerInput(key);
-                        break;
-                    case 'on':
-                        $('#'+key.id).addClass('pressed');
-                        playNote(key);
-                        if(!!game) game.playerInput(key);
-                        break;
-                    case 'off':
-                        $('#'+key.id).removeClass('pressed');
-                        break;
-                }
-            }
-
             function onMIDIMessage( event ) {
-                if(!game) return;
-
                 // Uint8Array?
                 var midiData = event.data;
-
-                var command;
 
                 var first = midiData[0],
                     note = midiData[1],
@@ -501,23 +328,17 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 } else if(first == 0x80) command = 'off';
                 else command = 'unknown command';
 
+                /*
                 console.log(command);
                 console.log(note);
                 console.log(velocity);
+                */
 
                 key = keyboard.keys[note-keyboard.min];
-                
-                // TODO remove external switch on game state, should be handled by the game
-                switch(game.state) {
-                    case gameStates.ANIMATING:
-                        break;
-                    case gameStates.INPUT_CONTROL:
-                        if(command === 'on') command = 'option';
-                        handleCommand(command, key);
-                        break;
-                    default:
-                        handleCommand(command, key);
-                        break;
+
+                if(!!game && game.state !== gameStates.ANIMATING) {
+                    if(command === 'on') dispatcher.trigger('key::press', key);
+                    else if(command === 'off') dispatcher.trigger('key::release', key);
                 }
             }
 
