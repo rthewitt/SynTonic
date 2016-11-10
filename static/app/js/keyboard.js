@@ -155,6 +155,8 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
         }
     }
 
+    Keyboard.prototype.stopNote = function(key) {
+    }
 
     // TODO get the output - how often to do this?
     function sendMidiNote( noteId, duration ) {
