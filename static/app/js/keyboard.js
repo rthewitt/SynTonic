@@ -117,10 +117,11 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
 
 
     Keyboard.prototype.playNote = function(key, duration) {
+        console.log('should we midi? '+this.output);
         if(this.output) {
             console.log('MIDI OUTPUT');
-            var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
-            sendMidiNote(midiNote, duration)
+            var midiNote = this.keys.indexOf(key)+this.min; // needs wrapper function
+            sendMidiNote.call(this, midiNote, duration)
         } else {
             audio.playSound('tone-'+key.id); 
             // stop sound if requested
@@ -134,10 +135,12 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
 
     // These notes are played simultaneously (WARNING: approximate!!)
     Keyboard.prototype.playNotes = function(keys, duration) {
+        console.log('should we midi? '+this.output);
         if(this.output) {
+            var self = this;
             _.each(keys, function(key) {
-                var midiNote = keyboard.keys.indexOf(key)+keyboard.min; // needs wrapper function
-                sendMidiNote(midiNote, duration)
+                var midiNote = self.keys.indexOf(key)+self.min; // needs wrapper function
+                sendMidiNote.call(self, midiNote, duration)
             });
         } else {
             // play web audio
@@ -161,7 +164,7 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
     // TODO get the output - how often to do this?
     function sendMidiNote( noteId, duration ) {
         duration = duration || 750.0;
-        var output = midiOut; // TODO
+        var output = this.midiOut; // TODO context must be set here...
         output.send( [0x90, noteId, 0x7f] );  // full velocity
         output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
     }

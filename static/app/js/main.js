@@ -72,6 +72,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                         console.log('OUTPUT ' + output.name + ' ::: ' + output.id);
                         if(output.id === '37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A') {
                             output.open();
+                            keyboard.output = true;
                             keyboard.midiOut = output;
                             $('#use-instrument').prop('checked', 'checked');
                         }
