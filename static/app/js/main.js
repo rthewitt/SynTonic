@@ -6,6 +6,7 @@ require.config({
         "underscore": "libs/underscore/underscore",
         "backbone": "libs/backbone/backbone",
         "mustache": "libs/mustache/mustache",
+        "rxjs": "libs/rxjs/rx.all",
         "marionette": "libs/marionette/lib/backbone.marionette.min"
     },
     shim: {
@@ -24,11 +25,11 @@ require.config({
 // TODO rename ui::clear to indicate that it only clears keyboard keys, NOT score meter or other game related information
 // FIXME melody game stop results in hanging activated notes
 
-require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game', './keyboard',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap'
-        ], function($, _, Backbone, Marionette, Mustache, GameMaker, Keyboard, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, GameMaker, Keyboard, dispatcher, audio, util, config) {
 
 
             var game = null;
@@ -46,8 +47,37 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 gameSelect, 
                 scoreMeter;
 
+            function clearKey(key) {
+                $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
+            }
+
+            function colorKey(key, clazz) {
+                $('#'+key.id).addClass(clazz);
+            }
+
+            // Activate in this context means play the note(s) and color them (currently yellow)
+            function activateKey(key) {
+                colorKey(key, 'waiting'); 
+                setTimeout(function() { clearKey(key); }, 500) // TEMPORARY
+            }
+
+            // Activate in this context means play the note(s) and color them (currently yellow)
+            // TODO remove this completely after modifying games
+            function activateFromData(data) {
+                console.log('should activate '+data.keys.length+' keys');
+                data.keys.forEach(function(k){ console.log(k);});
+                setTimeout(function() { 
+                    colorKeys(data.keys, 'waiting'); 
+                    if(data.sound) keyboard.playNotes(data.keys);
+                }, (data.when || 0));
+            }
+
 
             function startPianoApp() {
+                // ReactiveX conversion
+                var timeSource = Rx.Observable.timer(0,500);
+                var keyGen = Rx.Observable.from(keyboard.keys); // TODO make random, potentially infinite?
+                var activator = Rx.Observable.zip(timeSource, keyGen, (i,x) => x).subscribe(activateKey);
 
                 stopGame = $('#stop-game');
                 gameSelect = $('#game-type');
@@ -106,7 +136,8 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                  });
 
 
-                $(".white").mouseup(function () {
+                $(".white, .black").mouseup(function () {
+                    $(this).removeClass('pressed')
                     var toneId = $(this).attr('id'),
                         key = keyboard.keysById[toneId];
                     //dispatcher.trigger('key::release', key);
@@ -187,6 +218,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
             }
 
 
+            // TODO delete me
             function clearKeys(data) {
                 var keys;
                 if(!!data && !!data.keys && data.keys.length > 0) {
@@ -280,15 +312,7 @@ require([ 'jquery', 'underscore', 'backbone', 'marionette', 'mustache', './game'
                 });
 
 
-                // Activate in this context means play the note(s) and color them (currently yellow)
-                dispatcher.on('game::activate', function(data) {
-                    console.log('should activate '+data.keys.length+' keys');
-                    data.keys.forEach(function(k){ console.log(k);});
-                    setTimeout(function() { 
-                        colorKeys(data.keys, 'waiting'); 
-                        if(data.sound) keyboard.playNotes(data.keys);
-                    }, (data.when || 0));
-                });
+                dispatcher.on('game::activate', activateFromData);
 
 
                 dispatcher.on('game::won', function(ev) {
