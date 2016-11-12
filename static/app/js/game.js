@@ -45,7 +45,8 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
         this.reset(); // put into input state
 
-        dispatcher.on('key::press', this.playerInput, this);
+        // I am ignoring input for now, because no game!!
+        //dispatcher.on('key::press', this.playerInput, this);
         //dispatcher.on('key::release', function(key) { }, this);
     }
 
@@ -59,12 +60,11 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
 
     Game.prototype.start = function() {
         this.clear();
-        dispatcher.trigger('ui::clear'); // only clears keypresses, TODO rename
+        dispatcher.trigger('keys::clear'); // only clears keypresses, TODO rename
         this.state = state.STARTED;
         this.keyboard.silent = false;
         this.score = this.baseScore;
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
-        dispatcher.trigger('game::start'); // TODO fire this or additional event during the option click to start-game, so that UI can show that game is starting up
         this.next();
     }
 
@@ -154,10 +154,10 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
             // the UI would clear
             var shouldWait = _.some(this.toPlay, function(key) { return key.id === justPlayed.id; });
             if(!shouldWait) {
-                dispatcher.trigger('ui::clear', { keys: [ justPlayed ] });
+                dispatcher.trigger('keys::clear', { keys: [ justPlayed ] });
             }
 
-            dispatcher.trigger('key::success', { key: justPlayed });
+            dispatcher.trigger('key::success', justPlayed);
 
             if(this.toPlay.length == 0) {
                 this.clear();
@@ -165,7 +165,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
                 else this.next();
             } 
         } else {
-            dispatcher.trigger('key::miss', { key: justPlayed });
+            dispatcher.trigger('key::miss', justPlayed);
             if(this.timer !== null) clearTimeout(this.timer);
             if(this.score <= 0) this.lose();
             else {
@@ -216,7 +216,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
             clearTimeout(this.timer);
             this.timer = null;
         }
-        // if I add ui::clear to this, I should remove it from reset, etc
+        // if I add keys::clear to this, I should remove it from reset, etc
         // will I ever want to clear the milestone / game WITHOUT ui clear?
     };
 
@@ -226,7 +226,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         this.clear(); // does not clear score, is only used to clear game timer
         this.score = 0; // is there a better place for this?
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
-        dispatcher.trigger('ui::clear'); 
+        dispatcher.trigger('keys::clear'); 
         this.state = state.INPUT_CONTROL;
         this.keyboard.silent = true;
     };
@@ -339,9 +339,9 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         if(success) {
             this.toPlay.shift();
             var shouldWait = _.some(this.toPlay, function(key) { return key.id === justPlayed.id; });
-            if(!shouldWait) dispatcher.trigger('ui::clear');
+            if(!shouldWait) dispatcher.trigger('keys::clear');
 
-            dispatcher.trigger('key::success', { key: justPlayed });
+            dispatcher.trigger('key::success', justPlayed);
 
             if(this.toPlay.length !== 0)
                 throw Exception("Game queue for aptitude style has exceeded maximum");
@@ -350,7 +350,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
             if(this.score >= this.threshold) this.win();
             else this.next();
         } else {
-            dispatcher.trigger('key::miss', { key: justPlayed });
+            dispatcher.trigger('key::miss', justPlayed);
             if(this.timer !== null) clearTimeout(this.timer);
             if(this.score <= 0) this.lose();
             else {

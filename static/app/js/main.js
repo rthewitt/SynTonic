@@ -19,10 +19,11 @@ require.config({
 });
 
 
-// TODO we need a graphical indicator of WHEN to press the key, for melody especially
-// FIXME no keyup is displayed - what was previous logic?
-// FIXME on game success, we need to create another one if it is destroyed
-// TODO rename ui::clear to indicate that it only clears keyboard keys, NOT score meter or other game related information
+// TODO User attempted to replay the three note melody instead of continuing with the remaining notes. Pause and replay melody on failure.
+// TODO User played melody quickly instead of matching the timing of the notes. 
+//      --   Add pendalty for timing miss, and indication of desired / played duration via key::press, key::release 
+// FIXME two successive notes leaves no indication by activation. - TODO distinctLast (?) - won't hold up forever...
+// TODO we need a graphical indicator of WHEN to press the key, for melody especially - easier than duration above - must simply match up with generated notes.
 // FIXME melody game stop results in hanging activated notes
 
 require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './keyboard',
@@ -43,47 +44,143 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             var midi = null;
 
-            var stopGame, 
+            var gameStop, 
                 gameSelect, 
                 scoreMeter;
+
+            function colorKey(key, clazz, duration) {
+                $('#'+key.id).addClass(clazz);
+                if(!!duration) setTimeout(function() {
+                    $('#'+key.id).removeClass(clazz);
+                }, duration);
+            }
+
+            // =========== GAME CONVERSION ============
+            var timeout = 1000;
 
             function clearKey(key) {
                 $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
             }
 
-            function colorKey(key, clazz) {
-                $('#'+key.id).addClass(clazz);
+            function clearAllKeys() {
+                _.each(keyboard.keys, clearKey);
             }
+
+            function successKey(key) {
+                colorKey(key, 'success', 200);
+            };
+
+            function failKey(key) {
+                colorKey(key, 'failure', 200);
+            };
 
             // Activate in this context means play the note(s) and color them (currently yellow)
             function activateKey(key) {
-                colorKey(key, 'waiting'); 
-                setTimeout(function() { clearKey(key); }, 500) // TEMPORARY
+                // TODO leave this always on, then on timeout clear it and play buzzer
+                colorKey(key, 'waiting', timeout); 
             }
 
-            // Activate in this context means play the note(s) and color them (currently yellow)
-            // TODO remove this completely after modifying games
-            function activateFromData(data) {
-                console.log('should activate '+data.keys.length+' keys');
-                data.keys.forEach(function(k){ console.log(k);});
-                setTimeout(function() { 
-                    colorKeys(data.keys, 'waiting'); 
-                    if(data.sound) keyboard.playNotes(data.keys);
-                }, (data.when || 0));
+            function onKeyPress(key) {
+                if(!!game && game.state === gameStates.ANIMATING) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                } else dispatcher.trigger('key::press', key);
             }
+
+            function onKeyUp(key) {
+                dispatcher.trigger('key::release', key);
+            };
+
+
+            // win the game!
+            function onFinish() {
+                // UI cleanup
+                clearAllKeys();
+                gameStop.hide();
+
+                // playful animation
+                let kb = keyboard,
+                keys = _.range(Math.floor((kb.max-kb.min)/2), kb.max-kb.min + 1)
+                    .map((k) => kb.keys[k]);
+
+                var kx = Rx.Observable.fromArray(keys),
+                    ix = Rx.Observable.interval(40);
+
+                Rx.Observable.zip(kx, ix, (item, i) => item).do((key) => {
+                    keyboard.playNote(key);
+                    colorKey(key, 'success', 80);
+                }).subscribe();
+            }
+
+            function flowGenerate() {
+                let first = keyboard.keysById['3C'],
+                    last = keyboard.keysById['3B'],
+                    min = keyboard.keys.indexOf(first),
+                    max = keyboard.keys.indexOf(last),
+                    n;
+                do {
+                    n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
+                } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
+                return keyboard.keys[n];
+            }
+
+            function evaluateSimple(attempt) {
+                let good = attempt.target.id === attempt.pressed.id;
+                feedback = good ? successKey : failKey;
+                feedback(attempt.pressed);
+            }
+            // =========== END GAME CONVERSION ============
 
 
             function startPianoApp() {
-                // ReactiveX conversion
-                var timeSource = Rx.Observable.timer(0,500);
-                var keyGen = Rx.Observable.from(keyboard.keys); // TODO make random, potentially infinite?
-                var activator = Rx.Observable.zip(timeSource, keyGen, (i,x) => x).subscribe(activateKey);
 
-                stopGame = $('#stop-game');
+                gameStop = $('#stop-game');
                 gameSelect = $('#game-type');
                 scoreMeter = $('#score-meter');
 
+                // TODO convert these as well...
                 setupGameEvents();
+
+                // ReactiveX conversion
+                var playerPresses = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
+                var playerReleases = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
+
+                // hot observable - important because randomness means two altogether different streams
+                var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).take(10).publish();
+
+                playerPresses.subscribe(onKeyPress);
+                playerReleases.subscribe(onKeyUp);
+
+                // was looking at example with merging stop events and takeUntil on the final listener
+                var ender = Rx.Observable.fromEvent(gameStop, 'click').do(onFinish);
+
+                // no onFinish here, but should evaluate? TODO
+                var activator = keygen.takeUntil(ender).subscribe(activateKey);
+
+                function onTimeout() {
+                    // TODO use scan to watch score events, with a reward or penalty, an onError if less than 0, and complete on win
+                    //dispatcher.trigger('game::score', { current: this.score, max: this.threshold });
+                    console.log('buzzer');
+                    //audio.playSound('buzzer');
+                }
+
+                // FIXME this only calls onFinish when both playerPresses and attempts are exhausted, NOT WHAT WE WANT, and separate from above
+                // functions represent time windows on the join
+                var attempts = keygen.join(playerPresses, 
+                        () => Rx.Observable.timer(1000), 
+                        () => Rx.Observable.timer(0), 
+                        (x,y) => ({ target: x, pressed: y }) 
+                    ).do(evaluateSimple).timeout(timeout);
+
+                var gamePlay = attempts.subscribe(()=>{}, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
+
+                // Start the game
+                keygen.connect();
+                gameStop.show(); 
+
+
+                // END ReactiveX conversion
+
 
                 function listMidiIO() {
                     // TODO add these to dropdown of some sort
@@ -122,30 +219,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // for system exclusive messages, pass opts: { sysex: true }
                 navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
 
-
-                $(".white, .black").mousedown(function (ev) {
-
-                    var toneId = $(this).attr('id'),
-                        key = keyboard.keysById[toneId];
-
-                    // ignore any input while game is animating
-                    if(!!game && game.state === gameStates.ANIMATING) {
-                        ev.stopPropagation();
-                        ev.preventDefault();
-                    } else dispatcher.trigger('key::press', key);
-                 });
-
-
-                $(".white, .black").mouseup(function () {
-                    $(this).removeClass('pressed')
-                    var toneId = $(this).attr('id'),
-                        key = keyboard.keysById[toneId];
-                    //dispatcher.trigger('key::release', key);
-                 });
-
-
                 gameSelect.on('change', onGameSelect);
-                stopGame.on('click', onGameStopPress);
                 $('#use-instrument').change(function() {
                     keyboard.output = $(this).prop('checked');
                 });
@@ -157,9 +231,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
-            // TODO FIXME stop all notes playing (has race condition, or lack of delay)
-            // maybe try using a callback after failure
-            // This will be a view later
             function onGameSelect(ev) { 
                 if(!!game) {
                     game.cleanup(); // avoid memory leaks
@@ -185,60 +256,14 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
+            /* TODO remove
             function onGameStopPress(ev) { 
                 if(!!game) {
                     game.reset();
-                    stopGame.hide();
+                    gameStop.hide();
                 }
             }
-
-
-            // play the note queue [q] and render with CSS class
-            // clazz can be a multi selector as well
-            function playNotesRecursive(q, clazz, cb) {
-                console.log(gameStates.names[game.state]);
-
-                q = q || _.range(keyboard.max - keyboard.min + 1);
-
-                cur = q.shift();
-                if(typeof cur !== 'undefined') {
-                    var key = keyboard.keys[cur];
-                    if(!!clazz) {
-                        // render key state
-                        colorKeys([ key ], clazz);
-                        setTimeout(function() {
-                            clearKeys( { keys: [ key ] } );
-                        }, 80);
-                    }
-                    keyboard.playNote(key);
-                    setTimeout(function() {
-                        playNotesRecursive(q, clazz, cb);
-                    },40);
-                } else cb();
-            }
-
-
-            // TODO delete me
-            function clearKeys(data) {
-                var keys;
-                if(!!data && !!data.keys && data.keys.length > 0) {
-                    keys = _.map(data.keys, function(k) {
-                        return $('#'+k.id);
-                    });
-                } else keys = [ $('.white, .black') ];
-
-                // this array structure will allow for chords, groups to be cleared
-                _.each(keys, function($el) { $el.removeClass('waiting success failure pressed'); });
-            }
-
-
-            // currently indexes
-            function colorKeys(keys, clazz) {
-                _.each(keys, function(key) {
-                    $('#'+key.id).addClass(clazz);
-                });
-            }
-
+            */
 
             function setupGameEvents() {
 
@@ -263,82 +288,32 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 });
 
-                dispatcher.on('game::start', function(ev) {
-                    stopGame.show();
-                });
-
-                // TODO either get a smaller more pleasant sound, or use the following technique to cut it short
-                // http://stackoverflow.com/questions/5932412/html5-audio-how-to-play-only-a-selected-portion-of-an-audio-file-audio-sprite
-                dispatcher.on('game::timeout', function(ev) {
-                    dispatcher.trigger('ui::clear');
-                    soundBuzzer();
-                    setTimeout(ev.onReady, 2000);
-                });
-
-
                 dispatcher.on('game::lost', function(ev) {
-                    stopGame.hide();
+                    gameStop.hide();
 
                     allKeys = $('.white, .black');
                     allKeys.removeClass('waiting');
                     allKeys.addClass('failure pressed');
 
-                    keyboard.playNotes(keyboard.keys, 5000.0);
+                    keyboard.playNotes(keyboard.keys, 1500.0);
 
                     setTimeout(function() {
                         game.reset();
-                    }, 5000);
+                    }, 1500);
 
                 });
 
-                dispatcher.on('ui::clear', clearKeys);
-
-                dispatcher.on('key::success', function(data) {
-                    colorKeys([ data.key ], 'success');
-                    setTimeout(function() {
-                        $('#'+data.key.id).removeClass('success');
-                    }, 200);
+                // notice plural for now
+                dispatcher.on('keys::clear', function(ev) {
+                    if(!!ev && !!ev.keys)
+                        _.each(ev.keys, clearKey)
+                    else clearAllKeys();
                 });
 
-
-                dispatcher.on('key::miss', function(data) {
-                    colorKeys([ data.key ], 'failure');
-                    setTimeout(function() {
-                        if(!!game && game.state !== gameStates.ANIMATING) {
-                            // fixes race condition - better method?
-                            $('#'+data.key.id).removeClass('failure');
-                        } 
-                    }, 200);
-                });
-
-
-                dispatcher.on('game::activate', activateFromData);
-
-
-                dispatcher.on('game::won', function(ev) {
-                    stopGame.hide();
-
-                    var kb = keyboard,
-                    keyRange = _.range(Math.floor((kb.max-kb.min)/2), kb.max-kb.min + 1);
-
-                    var cb = function() {
-                        ev.onFinish();
-                    };
-                    playNotesRecursive(keyRange, 'pressed success', cb);
-                });
+                dispatcher.on('key::success', successKey);
+                dispatcher.on('key::miss', failKey);
             }
 
-
-            // TODO: consider if a timeout sound makes sense for keyboard
-            // when I support different sorts, may only have one octave
-            // so we need to ensure that a default stragey like web audio is present
-            function soundBuzzer() {
-                console.log('buzzer');
-                audio.playSound('buzzer');
-            }
-
-            
-            // Why does this stuff exist again?
 
             function onMIDIMessage( event ) {
                 // Uint8Array?
