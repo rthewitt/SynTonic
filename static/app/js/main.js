@@ -55,8 +55,34 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }, duration);
             }
 
+
             // =========== GAME CONVERSION ============
             var timeout = 1000;
+            var baseScore = 9;
+            var reward = 1;
+            var penalty = -6;
+            var winThreshold = 30;
+
+            // TODO simplify this
+            function updateScoreBar(score, initial) {
+                console.log('cur: '+score + '\nmax: '+winThreshold);
+                var p = Math.round(100 * (score / winThreshold ));
+                console.log(p);
+                scoreMeter.css('width', ''+p+'%');
+                if(initial) {
+                    scoreMeter.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
+                    scoreMeter.addClass('progress-bar-info');
+                } else if(p < 10) {
+                    scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
+                    scoreMeter.addClass('progress-bar-danger active');
+                } else if(p < 20) {
+                    scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-danger active');
+                    scoreMeter.addClass('progress-bar-warning');
+                } else {
+                    scoreMeter.removeClass('progress-bar-info progress-bar-danger progress-bar-warning active');
+                    scoreMeter.addClass('progress-bar-success');
+                }
+            }
 
             function clearKey(key) {
                 $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
@@ -124,9 +150,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 return keyboard.keys[n];
             }
 
+            // started out as hit/miss, then changed to score calculation
             function evaluateSimple(attempt) {
-                let good = attempt.target.id === attempt.pressed.id;
-                feedback = good ? successKey : failKey;
+                let success = attempt.target.id === attempt.pressed.id;
+                let delta = success ?  reward : penalty;
+                return Object.assign({}, attempt, 
+                        { success: success, modifier: delta });
+            }
+
+            function updateUIForAttempt(attempt) {
+                feedback = attempt.success ? successKey : failKey;
                 feedback(attempt.pressed);
             }
             // =========== END GAME CONVERSION ============
@@ -140,13 +173,14 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // TODO convert these as well...
                 setupGameEvents();
+                updateScoreBar(baseScore, true);
 
                 // ReactiveX conversion
                 var playerPresses = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
                 var playerReleases = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
 
                 // hot observable - important because randomness means two altogether different streams
-                var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).take(10).publish();
+                var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
 
                 playerPresses.subscribe(onKeyPress);
                 playerReleases.subscribe(onKeyUp);
@@ -157,6 +191,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // no onFinish here, but should evaluate? TODO
                 var activator = keygen.takeUntil(ender).subscribe(activateKey);
 
+
                 function onTimeout() {
                     // TODO use scan to watch score events, with a reward or penalty, an onError if less than 0, and complete on win
                     //dispatcher.trigger('game::score', { current: this.score, max: this.threshold });
@@ -165,14 +200,18 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
 
                 // FIXME this only calls onFinish when both playerPresses and attempts are exhausted, NOT WHAT WE WANT, and separate from above
+                // TODO add buffer in here?  To force all keypresses to be one for a given note... (if length == 0, penalty, but not timeout error)
                 // functions represent time windows on the join
                 var attempts = keygen.join(playerPresses, 
                         () => Rx.Observable.timer(1000), 
                         () => Rx.Observable.timer(0), 
                         (x,y) => ({ target: x, pressed: y }) 
-                    ).do(evaluateSimple).timeout(timeout);
+                    )
 
-                var gamePlay = attempts.subscribe(()=>{}, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
+
+                var scoreBoard = attempts.map(evaluateSimple).do(updateUIForAttempt).pluck('modifier').scan((score, delta) => score+delta, baseScore).subscribe(updateScoreBar) //.do(updateUIForAttempt).subscribe();
+
+                var gamePlay = keygen.subscribe(()=>{}, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
 
                 // Start the game
                 keygen.connect();
@@ -267,26 +306,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             function setupGameEvents() {
 
-                dispatcher.on('game::score', function(score) {
-                    //console.log('cur: '+score.current + '\nmax: '+score.max);
-                    var p = Math.round(100 * (score.current / score.max));
-                    console.log(p);
-                    scoreMeter.css('width', ''+p+'%');
-                    if(score.initial) {
-                        scoreMeter.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
-                        scoreMeter.addClass('progress-bar-info');
-                    }
-                    else if(p < 10) {
-                        scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
-                        scoreMeter.addClass('progress-bar-danger active');
-                    } else if(p < 20) {
-                        scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-danger active');
-                        scoreMeter.addClass('progress-bar-warning');
-                    } else {
-                        scoreMeter.removeClass('progress-bar-info progress-bar-danger progress-bar-warning active');
-                        scoreMeter.addClass('progress-bar-success');
-                    }
-                });
 
                 dispatcher.on('game::lost', function(ev) {
                     gameStop.hide();
