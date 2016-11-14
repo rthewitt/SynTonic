@@ -43,6 +43,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameStates = util.gameStates;
 
             var midi = null;
+            var midiInput; // need a handle for event listener
 
             var gameStop, 
                 gameSelect, 
@@ -53,6 +54,30 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 if(!!duration) setTimeout(function() {
                     $('#'+key.id).removeClass(clazz);
                 }, duration);
+            }
+
+            function onMIDIMessage( event ) {
+                // Uint8Array?
+                var midiData = event.data;
+
+                var first = midiData[0],
+                    note = midiData[1],
+                    velocity = midiData[2];
+
+                if(first == 0x90) {
+                    command = velocity == 0x0 ? 'off' : 'on';
+                } else if(first == 0x80) command = 'off';
+                else command = 'unknown command';
+
+                console.log('new lisener received ' + command + ' command');
+
+                if(command === 'on') dispatcher.trigger('key::press', key);
+                else if(command === 'off') dispatcher.trigger('key::release', key);
+
+                return {
+                    key: keyboard.keys[note-keyboard.min],
+                    command: command
+                }
             }
 
 
@@ -176,8 +201,24 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 updateScoreBar(baseScore, true);
 
                 // ReactiveX conversion
-                var playerPresses = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
-                var playerReleases = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
+                var mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
+                var mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
+
+                var playerPresses,
+                    playerReleases;
+
+                if(!!midiInput) {
+                    var midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(onMIDIMessage);
+                    var midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
+                    var midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
+
+                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns);
+                    playerReleases = Rx.Observable.merge(mouseKeyUps, midiKeyUps);
+                } else {
+                    playerPresses = mouseKeyDowns;
+                    playerReleases = mouseKeyUps;
+                }
+                // merge
 
                 // hot observable - important because randomness means two altogether different streams
                 var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
@@ -228,7 +269,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         console.log('found midi input ' + input.name + ' ::: ' + input.id);
                         if(input.id === 'D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67') {
                             console.log('TODO create a dropdown select for input/output');
-                            input.onmidimessage = onMIDIMessage;
+                            midiInput = input;
+                            //input.onmidimessage = onMIDIMessage;
 
                             $('#is-connected').prop('checked', 'checked');
                         }
@@ -334,32 +376,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
-            function onMIDIMessage( event ) {
-                // Uint8Array?
-                var midiData = event.data;
-
-                var first = midiData[0],
-                    note = midiData[1],
-                    velocity = midiData[2];
-
-                if(first == 0x90) {
-                    command = velocity == 0x0 ? 'off' : 'on';
-                } else if(first == 0x80) command = 'off';
-                else command = 'unknown command';
-
-                /*
-                console.log(command);
-                console.log(note);
-                console.log(velocity);
-                */
-
-                key = keyboard.keys[note-keyboard.min];
-
-                if(!!game && game.state !== gameStates.ANIMATING) {
-                    if(command === 'on') dispatcher.trigger('key::press', key);
-                    else if(command === 'off') dispatcher.trigger('key::release', key);
-                }
-            }
 
 
             var app = new Marionette.Application();
