@@ -56,7 +56,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }, duration);
             }
 
-            function onMIDIMessage( event ) {
+            function parseMidi( event ) {
                 // Uint8Array?
                 var midiData = event.data;
 
@@ -68,11 +68,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     command = velocity == 0x0 ? 'off' : 'on';
                 } else if(first == 0x80) command = 'off';
                 else command = 'unknown command';
-
-                console.log('new lisener received ' + command + ' command');
-
-                if(command === 'on') dispatcher.trigger('key::press', key);
-                else if(command === 'off') dispatcher.trigger('key::release', key);
 
                 return {
                     key: keyboard.keys[note-keyboard.min],
@@ -190,12 +185,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             // =========== END GAME CONVERSION ============
 
 
-            function startPianoApp() {
 
-                gameStop = $('#stop-game');
-                gameSelect = $('#game-type');
-                scoreMeter = $('#score-meter');
-
+            function createGame() {
                 // TODO convert these as well...
                 setupGameEvents();
                 updateScoreBar(baseScore, true);
@@ -208,7 +199,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     playerReleases;
 
                 if(!!midiInput) {
-                    var midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(onMIDIMessage);
+                    var midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
                     var midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
                     var midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
 
@@ -218,7 +209,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     playerPresses = mouseKeyDowns;
                     playerReleases = mouseKeyUps;
                 }
-                // merge
 
                 // hot observable - important because randomness means two altogether different streams
                 var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
@@ -257,9 +247,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // Start the game
                 keygen.connect();
                 gameStop.show(); 
+            }
 
+            function startPianoApp() {
 
-                // END ReactiveX conversion
+                gameStop = $('#stop-game');
+                gameSelect = $('#game-type');
+                scoreMeter = $('#score-meter');
 
 
                 function listMidiIO() {
@@ -291,6 +285,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     console.log('MIDI ready');
                     midi = window.MIDI = mAccess;
                     listMidiIO();
+                    createGame();
                 }
 
                 function onMidiFailure(msg) {
