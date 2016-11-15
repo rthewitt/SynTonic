@@ -49,6 +49,31 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameSelect, 
                 scoreMeter;
 
+            var treble = {
+                canvas: undefined,
+                ctx: undefined,
+            };
+
+            var bass = {
+                canvas: undefined,
+                ctx: undefined,
+            };
+
+            var gameStarted = false;
+            var keygen, noteStream; // TODO FIXME return these globals to the game object encapsulation
+
+            function drawNote(note) {
+                let ctx = treble.ctx;
+                ctx.beginPath();
+                ctx.arc(note.x, note.y, 20, 0, 2*Math.PI);
+                ctx.fill();
+            }
+
+            function renderStaff(notes) {
+                treble.ctx.clearRect(0, 0, 1200, 150);
+                notes.map(drawNote);
+            }
+
             function colorKey(key, clazz, duration) {
                 $('#'+key.id).addClass(clazz);
                 if(!!duration) setTimeout(function() {
@@ -120,13 +145,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 colorKey(key, 'failure', 200);
             };
 
-            // Activate in this context means play the note(s) and color them (currently yellow)
             function activateKey(key) {
-                // TODO leave this always on, then on timeout clear it and play buzzer
-                colorKey(key, 'waiting', timeout); 
+                colorKey(key, 'waiting'); 
             }
 
             function onKeyPress(key) {
+                if(!gameStarted) {
+                    clearAllKeys();
+                    successKey(keyboard.keysById[keyboard.MIDDLE_C]);
+                    startGame();
+                }
                 if(!!game && game.state === gameStates.ANIMATING) {
                     ev.stopPropagation();
                     ev.preventDefault();
@@ -186,6 +214,15 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
 
 
+            /*
+             * Important: 
+             * At-your-own Pace:
+             * we want the pressing of notes to drive the animation
+             * Independent Timing:
+             * we want the animation to drive the activation of notes
+             *
+             * We can seed the first note to avoid chicke-and-egg streams
+             */
             function createGame() {
                 // TODO convert these as well...
                 setupGameEvents();
@@ -210,8 +247,26 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     playerReleases = mouseKeyUps;
                 }
 
+
+                var tempo = -5;
+                var maxNoteX = 300;
+                var loneNote = {
+                    x: 25,
+                    y: 25
+                }
+
+                // testing single note...
+                noteStream = Rx.Observable.interval(16).scan((note, tick) => { 
+                    note.x = note.x <= 0 ? maxNoteX : note.x + tempo;
+                    return note;
+                }, loneNote).publish();
+
+
+                // These will be consolidated in the future, when animation depends on the generator!
                 // hot observable - important because randomness means two altogether different streams
-                var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
+                //var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
+                keygen = noteStream.filter((note) => note.x === maxNoteX).map(flowGenerate).publish(); // tied to animation now
+                noteStream.map((n)=>[n]).subscribe(renderStaff); // animate on staff
 
                 playerPresses.subscribe(onKeyPress);
                 playerReleases.subscribe(onKeyUp);
@@ -220,7 +275,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 var ender = Rx.Observable.fromEvent(gameStop, 'click').do(onFinish);
 
                 // no onFinish here, but should evaluate? TODO
-                var activator = keygen.takeUntil(ender).subscribe(activateKey);
+                var activator = keygen.takeUntil(ender).subscribe((key) => { clearAllKeys(); activateKey(key); }); // map this to "flowActivate"
 
 
                 function onTimeout() {
@@ -244,16 +299,28 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 var gamePlay = keygen.subscribe(()=>{}, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
 
-                // Start the game
-                keygen.connect();
-                gameStop.show(); 
+                activateKey(keyboard.keysById[keyboard.MIDDLE_C]);
+                renderStaff([loneNote]);
             }
 
+
+            // TODO FIXME move back into game
+            function startGame() {
+                keygen.connect();
+                noteStream.connect();
+                gameStop.show(); 
+                gameStarted = true;
+            }
+
+            
             function startPianoApp() {
 
                 gameStop = $('#stop-game');
                 gameSelect = $('#game-type');
                 scoreMeter = $('#score-meter');
+
+                treble.canvas = $('#treble-staff')[0];
+                treble.ctx = treble.canvas.getContext('2d');
 
 
                 function listMidiIO() {
@@ -282,7 +349,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
 
                 function onMidiSuccess(mAccess) {
-                    console.log('MIDI ready');
                     midi = window.MIDI = mAccess;
                     listMidiIO();
                     createGame();
