@@ -60,17 +60,29 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             };
 
             var gameStarted = false;
-            var keygen, noteStream; // TODO FIXME return these globals to the game object encapsulation
+            var notegen; //, noteStream; // TODO FIXME return these globals to the game object encapsulation
+
+            const TREBLE_BAR_HEIGHT = 25;
+            const noteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
+            const NOTES_POS_H = [125, 125, 113, 113, 100, 88, 88, 75, 75, 63, 63, 50];
 
             function drawNote(note) {
                 let ctx = treble.ctx;
                 ctx.beginPath();
-                ctx.arc(note.x, note.y, 20, 0, 2*Math.PI);
+                ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
                 ctx.fill();
             }
 
             function renderStaff(notes) {
-                treble.ctx.clearRect(0, 0, 1200, 150);
+                let ctx = treble.ctx;
+                ctx.clearRect(0, 0, 300, 150);
+                for(var x=1; x<=5; x++) {
+                    let pos = x*TREBLE_BAR_HEIGHT;
+                    ctx.beginPath();
+                    ctx.moveTo(0,pos);
+                    ctx.lineTo(300,pos);
+                    ctx.stroke();
+                }
                 notes.map(drawNote);
             }
 
@@ -105,14 +117,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             var timeout = 1000;
             var baseScore = 9;
             var reward = 1;
-            var penalty = -6;
+            var penalty = -2;
             var winThreshold = 30;
 
             // TODO simplify this
             function updateScoreBar(score, initial) {
-                console.log('cur: '+score + '\nmax: '+winThreshold);
+                //console.log('cur: '+score + '\nmax: '+winThreshold);
                 var p = Math.round(100 * (score / winThreshold ));
-                console.log(p);
                 scoreMeter.css('width', ''+p+'%');
                 if(initial) {
                     scoreMeter.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
@@ -150,11 +161,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
             function onKeyPress(key) {
+                /* TODO remove me
                 if(!gameStarted) {
                     clearAllKeys();
                     successKey(keyboard.keysById[keyboard.MIDDLE_C]);
                     startGame();
                 }
+                */
                 if(!!game && game.state === gameStates.ANIMATING) {
                     ev.stopPropagation();
                     ev.preventDefault();
@@ -185,6 +198,20 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     colorKey(key, 'success', 80);
                 }).subscribe();
             }
+            
+
+            var tempo = -5;
+            var maxNoteX = 300;
+
+            function Note(id) {
+                this.id = id; 
+                this.key = keyboard.keysById[id];
+                this.name = this.key.note;
+                this.x = maxNoteX;
+                this.y = NOTES_POS_H[noteNames.indexOf(this.name)]
+            }
+
+
 
             function flowGenerate() {
                 let first = keyboard.keysById['3C'],
@@ -195,7 +222,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 do {
                     n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
                 } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
-                return keyboard.keys[n];
+                return new Note(keyboard.keys[n].id);
             }
 
             // started out as hit/miss, then changed to score calculation
@@ -210,6 +237,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 feedback = attempt.success ? successKey : failKey;
                 feedback(attempt.pressed);
             }
+
             // =========== END GAME CONVERSION ============
 
 
@@ -248,25 +276,28 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
 
 
-                var tempo = -5;
-                var maxNoteX = 300;
-                var loneNote = {
-                    x: 25,
-                    y: 25
-                }
+                notegen = new Rx.Subject();
+                
 
                 // testing single note...
+                let loneNote = new Note(keyboard.keysById[keyboard.MIDDLE_C].id);
+                loneNote.x = 20;
+
+
+                /*
                 noteStream = Rx.Observable.interval(16).scan((note, tick) => { 
                     note.x = note.x <= 0 ? maxNoteX : note.x + tempo;
                     return note;
                 }, loneNote).publish();
+                */
 
 
                 // These will be consolidated in the future, when animation depends on the generator!
                 // hot observable - important because randomness means two altogether different streams
                 //var keygen = Rx.Observable.timer(0,timeout).map(flowGenerate).publish();
-                keygen = noteStream.filter((note) => note.x === maxNoteX).map(flowGenerate).publish(); // tied to animation now
-                noteStream.map((n)=>[n]).subscribe(renderStaff); // animate on staff
+                //keygen = noteStream.filter((note) => note.x === maxNoteX).map(flowGenerate).publish(); // tied to animation now
+
+                //noteStream.map((n)=>[n]).subscribe(renderStaff); // animate on staff
 
                 playerPresses.subscribe(onKeyPress);
                 playerReleases.subscribe(onKeyUp);
@@ -275,7 +306,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 var ender = Rx.Observable.fromEvent(gameStop, 'click').do(onFinish);
 
                 // no onFinish here, but should evaluate? TODO
-                var activator = keygen.takeUntil(ender).subscribe((key) => { clearAllKeys(); activateKey(key); }); // map this to "flowActivate"
+                var activator = notegen.takeUntil(ender).pluck('key').subscribe((key) => { clearAllKeys(); console.log('ACTIVATING '+key.id); activateKey(key); }); // map this to "flowActivate"
 
 
                 function onTimeout() {
@@ -288,26 +319,30 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // FIXME this only calls onFinish when both playerPresses and attempts are exhausted, NOT WHAT WE WANT, and separate from above
                 // TODO add buffer in here?  To force all keypresses to be one for a given note... (if length == 0, penalty, but not timeout error)
                 // functions represent time windows on the join
-                var attempts = keygen.join(playerPresses, 
+                var attempts = notegen.pluck('key').join(playerPresses, 
                         () => Rx.Observable.timer(1000), 
                         () => Rx.Observable.timer(0), 
                         (x,y) => ({ target: x, pressed: y }) 
                     )
 
 
-                var scoreBoard = attempts.map(evaluateSimple).do(updateUIForAttempt).pluck('modifier').scan((score, delta) => score+delta, baseScore).subscribe(updateScoreBar) //.do(updateUIForAttempt).subscribe();
+                var checker = attempts.map(evaluateSimple);
+                var scoreBoard = checker.pluck('modifier').scan((score, delta) => score+delta > 0 ? score+delta : 0 , baseScore).subscribe(updateScoreBar) 
+                var moveForward = checker.do(updateUIForAttempt).filter((attempt) => attempt.success).delay(500).subscribe(() => notegen.onNext(flowGenerate())); 
 
-                var gamePlay = keygen.subscribe(()=>{}, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
+                var gamePlay = notegen.subscribe((note) => { console.log('generated note: '+note.id ) }, onTimeout, onFinish); // should allow error for timeout when present, complete for no more notes?
 
+                notegen.onNext(new Note(keyboard.MIDDLE_C));
+                startGame();
+                /*
                 activateKey(keyboard.keysById[keyboard.MIDDLE_C]);
                 renderStaff([loneNote]);
+                */
             }
 
 
             // TODO FIXME move back into game
             function startGame() {
-                keygen.connect();
-                noteStream.connect();
                 gameStop.show(); 
                 gameStarted = true;
             }
