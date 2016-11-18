@@ -228,7 +228,7 @@ define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
         dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
         dispatcher.trigger('keys::clear'); 
         this.state = state.INPUT_CONTROL;
-        this.keyboard.silent = true;
+        //this.keyboard.silent = true;
     };
 
     
