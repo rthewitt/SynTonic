@@ -35,6 +35,13 @@ nav.right {
 }
 
 #scoreboard {
+    color: red;
+    font-size: 48px;
+    position: absolute;
+    left: 50%;
+}
+
+#round-progress {
     display: block;
     margin-top: 450px;
     margin-left: 300px;

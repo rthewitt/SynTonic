@@ -19,6 +19,7 @@ require.config({
 });
 
 
+// FIXME on timeout, use is still allowed to play the last note at their leisure
 // TODO User attempted to replay the three note melody instead of continuing with the remaining notes. Pause and replay melody on failure.
 // TODO User played melody quickly instead of matching the timing of the notes. 
 //      --   Add pendalty for timing miss, and indication of desired / played duration via key::press, key::release 
@@ -47,7 +48,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             var gameStop, 
                 gameSelect, 
-                scoreMeter;
+                scoreBoard, 
+                progressBar;
 
             var treble = {
                 canvas: undefined,
@@ -147,30 +149,29 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             // TODO handle game-over conditions. Lose on incorrect is true to inspiration.  Additional lose on complete miss for independent timing
             
             var timeout = 1000;
-            var baseScore = 9;
             var reward = 1;
-            var penalty = -2;
+            var penalty = 0;
             var winThreshold = 30;
 
             // TODO simplify this - also, maybe eliminate winCondition?  Previous score could be used instead for visual scorebar...
             // Note that using a penalty ruins the end condition, since you must take a hit and lower your number
             // Unless of course, only incorrect is penalized - a miss could reset the score...
-            function updateScoreBar(score, initial) {
+            function updateProgressBar(score, initial) {
                 //console.log('cur: '+score + '\nmax: '+winThreshold);
                 var p = Math.round(100 * (score / winThreshold ));
-                scoreMeter.css('width', ''+p+'%');
+                progressBar.css('width', ''+p+'%');
                 if(initial) {
-                    scoreMeter.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
-                    scoreMeter.addClass('progress-bar-info');
+                    progressBar.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
+                    progressBar.addClass('progress-bar-info');
                 } else if(p < 10) {
-                    scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
-                    scoreMeter.addClass('progress-bar-danger active');
+                    progressBar.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
+                    progressBar.addClass('progress-bar-danger active');
                 } else if(p < 20) {
-                    scoreMeter.removeClass('progress-bar-info progress-bar-success progress-bar-danger active');
-                    scoreMeter.addClass('progress-bar-warning');
+                    progressBar.removeClass('progress-bar-info progress-bar-success progress-bar-danger active');
+                    progressBar.addClass('progress-bar-warning');
                 } else {
-                    scoreMeter.removeClass('progress-bar-info progress-bar-danger progress-bar-warning active');
-                    scoreMeter.addClass('progress-bar-success');
+                    progressBar.removeClass('progress-bar-info progress-bar-danger progress-bar-warning active');
+                    progressBar.addClass('progress-bar-success');
                 }
             }
 
@@ -250,7 +251,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             function createGame() {
                 // TODO convert these as well...
                 setupGameEvents();
-                updateScoreBar(baseScore, true);
 
                 // ReactiveX conversion
                 var mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
@@ -271,11 +271,11 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     playerReleases = mouseKeyUps;
                 }
 
-                playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
-                playerReleases.subscribe((key) => dispatcher.trigger('key::release', key));
-
-                // was looking at example with merging stop events and takeUntil on the final listener
-                var ender = Rx.Observable.fromEvent(gameStop, 'click').do(() => console.log('GAME ENDED - score not available to this function...'));
+                // various ways the game will end - apply with array did not work...
+                var ender = Rx.Observable.merge(
+                    Rx.Observable.fromEvent(gameStop, 'click').do(() => console.log('GAME MANUALLY STOPPED')),
+                    Rx.Observable.interval(3000).take(1).do(() => console.log('GAME TIMED OUT...'))
+                    ).publish().refCount(); // make it hot
 
                 // "generator" for notes
                 var notegen = new Rx.Subject();
@@ -286,7 +286,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
                 var attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluateSimple);
 
-                var scoreBoard = attempts.pluck('modifier').scan((score, delta) => score+delta > 0 ? score+delta : 0 , baseScore).subscribe(updateScoreBar) 
+                // update scoreBoard
+                attempts.pluck('modifier').scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => scoreBoard.text(''+score)) 
 
                 var noteStream = Rx.Observable.interval(16).scan((v, tick) => { 
                     let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
@@ -297,14 +298,33 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }, STREAM_SPEED).subscribe(() => renderStaff(playQueue));
 
 
+                // TODO move this into settings somewhere
+                // do we want to play "out of octave sound"?
+                let audibleMiss = true;
+                playerReleases.subscribe((key) => dispatcher.trigger('key::release', key));
+                if(audibleMiss) {
+                    attempts.subscribe((attempt) => {
+                        key = attempt.success ? attempt.pressed : keyboard.keysById['0C'];
+                        dispatcher.trigger('key::press', key);
+                        dispatcher.trigger('key::release', key);
+                    });
+                } else playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
+
+
                 // player needs a new key to play!
                 // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
-                var moveForward = attempts.do(updateUIForAttempt).filter((attempt) => attempt.success).delay(200).do(clearAllKeys).delay(150).subscribe((attempt) => {
+                var moveForward = attempts.takeUntil(ender).do(updateUIForAttempt).filter((attempt) => attempt.success).delay(200).do(clearAllKeys).delay(150).subscribe((attempt) => {
                     playQueue.shift();
                     if(playQueue.length < 12) 
                         notegen.onNext(flowGenerate())
                     // advance the keyboard UI
                     activateKey(playQueue[0].key); 
+                },
+                (err) => console.log(err),
+                // on complete (game ended)
+                () => {
+                    console.log('ENDING GAME');
+                    clearAllKeys();
                 });
 
                 // do onFinish here and trigger either ender or onComplete of notegen Subject
@@ -323,6 +343,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
                 gameStop.show(); 
                 renderCleff();
+                scoreBoard.text('0');
             }
 
 
@@ -330,7 +351,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 gameStop = $('#stop-game');
                 gameSelect = $('#game-type');
-                scoreMeter = $('#score-meter');
+                progressBar = $('#progress-meter');
+                scoreBoard = $('#scoreboard');
 
                 treble.canvas = $('#treble-staff')[0];
                 treble.ctx = treble.canvas.getContext('2d');
