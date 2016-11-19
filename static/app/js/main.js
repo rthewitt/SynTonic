@@ -19,7 +19,7 @@ require.config({
 });
 
 
-// FIXME on timeout, use is still allowed to play the last note at their leisure
+// FIXME pressing a button rapidly can give two points
 // TODO User attempted to replay the three note melody instead of continuing with the remaining notes. Pause and replay melody on failure.
 // TODO User played melody quickly instead of matching the timing of the notes. 
 //      --   Add pendalty for timing miss, and indication of desired / played duration via key::press, key::release 
@@ -48,6 +48,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             var gameStop, 
                 gameSelect, 
+                showSettings,
                 scoreBoard, 
                 progressBar;
 
@@ -148,22 +149,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             // TODO handle game-over conditions. Lose on incorrect is true to inspiration.  Additional lose on complete miss for independent timing
             
-            var timeout = 1000;
+            var timeout = 1E3;
             var reward = 1;
             var penalty = 0;
-            var winThreshold = 30;
+            var gameTime = 20;
 
-            // TODO simplify this - also, maybe eliminate winCondition?  Previous score could be used instead for visual scorebar...
-            // Note that using a penalty ruins the end condition, since you must take a hit and lower your number
-            // Unless of course, only incorrect is penalized - a miss could reset the score...
-            function updateProgressBar(score, initial) {
-                //console.log('cur: '+score + '\nmax: '+winThreshold);
-                var p = Math.round(100 * (score / winThreshold ));
+
+            function updateProgressBar(cur, max) {
+                var p = Math.round(100 * (cur / max));
                 progressBar.css('width', ''+p+'%');
-                if(initial) {
-                    progressBar.removeClass('progress-bar-danger progress-bar-warning progress-bar-success');
-                    progressBar.addClass('progress-bar-info');
-                } else if(p < 10) {
+                if(p < 10) {
                     progressBar.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
                     progressBar.addClass('progress-bar-danger active');
                 } else if(p < 20) {
@@ -271,11 +266,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     playerReleases = mouseKeyUps;
                 }
 
-                // various ways the game will end - apply with array did not work...
-                var ender = Rx.Observable.merge(
-                    Rx.Observable.fromEvent(gameStop, 'click').do(() => console.log('GAME MANUALLY STOPPED')),
-                    Rx.Observable.interval(3000).take(1).do(() => console.log('GAME TIMED OUT...'))
-                    ).publish().refCount(); // make it hot
 
                 // "generator" for notes
                 var notegen = new Rx.Subject();
@@ -286,10 +276,26 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
                 var attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluateSimple);
 
-                // update scoreBoard
-                attempts.pluck('modifier').scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => scoreBoard.text(''+score)) 
+                // various ways the game will end - apply with array did not work...
+                var ender = Rx.Observable.merge(
+                    Rx.Observable.fromEvent(gameStop, 'click').do(() => console.log('GAME MANUALLY STOPPED')),
+                    Rx.Observable.interval(1E3 * gameTime).take(1).do(() => console.log('GAME TIMED OUT...')),
+                    attempts.filter((a) => !a.success).delay(100)
+                    ).publish().refCount(); // make it hot
 
-                var noteStream = Rx.Observable.interval(16).scan((v, tick) => { 
+
+                // update scoreBoard
+                attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => scoreBoard.text(''+score)) 
+
+                // update progress
+                Rx.Observable.timer(0, 500).takeUntil(ender).subscribe((elapsed) => {
+                    let max = 2 * gameTime,
+                        left = max - (elapsed+1); // +1 to end animation at zero
+                    updateProgressBar(left > 0 ? left : left, max);
+                });
+
+
+                var noteStream = Rx.Observable.interval(16).takeUntil(ender).scan((v, tick) => { 
                     let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
                     playQueue.map((note) => {
                         note.x = note.x + tempo;
@@ -313,7 +319,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // player needs a new key to play!
                 // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
-                var moveForward = attempts.takeUntil(ender).do(updateUIForAttempt).filter((attempt) => attempt.success).delay(200).do(clearAllKeys).delay(150).subscribe((attempt) => {
+                var moveForward = attempts.takeUntil(ender).do(updateUIForAttempt).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).delay(150).subscribe((attempt) => {
                     playQueue.shift();
                     if(playQueue.length < 12) 
                         notegen.onNext(flowGenerate())
@@ -325,6 +331,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 () => {
                     console.log('ENDING GAME');
                     clearAllKeys();
+                    renderStaff([]);
+                    updateProgressBar(0,1);
                 });
 
                 // do onFinish here and trigger either ender or onComplete of notegen Subject
@@ -351,8 +359,11 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 gameStop = $('#stop-game');
                 gameSelect = $('#game-type');
+                showSettings = $('#show-settings');
                 progressBar = $('#progress-meter');
                 scoreBoard = $('#scoreboard');
+
+                showSettings.on('click', (ev) => $('#settings').modal('show'));
 
                 treble.canvas = $('#treble-staff')[0];
                 treble.ctx = treble.canvas.getContext('2d');

@@ -38,13 +38,32 @@
 	</nav>
 	<nav class="right">
         <a id="stop-game" style="float: right; display: none">Stop Game</a><br />
-        <div class="options">
-            <input id="is-connected" name="isConnected" type="checkbox" disabled><label for="is-connected">Instrument Connected</label>
-        </div>
-        <div class="options">
-            <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play on Instrument</label>
-        </div>
+        <a id="show-settings" style="float: right;">Settings</a><br />
 	</nav>
+
+    <div id="settings" class="modal fade" tabindex="-1" role="dialog">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Settings</h4>
+          </div>
+          <div class="modal-body">
+            <div class="options">
+                <input id="is-connected" name="isConnected" type="checkbox" disabled><label for="is-connected">Instrument Connected</label>
+            </div>
+            <div class="options">
+                <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play on Instrument</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary">Save changes</button>
+          </div>
+        </div><!-- /.modal-content -->
+      </div><!-- /.modal-dialog -->
+    </div><!-- /.modal -->
+
     <div id="scoreboard"></div>
     <div id="piano">
         <div id="pianoBody">
