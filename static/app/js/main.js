@@ -20,13 +20,6 @@ require.config({
 
 
 // FIXME pressing a button rapidly can give two points
-// TODO User attempted to replay the three note melody instead of continuing with the remaining notes. Pause and replay melody on failure.
-// TODO User played melody quickly instead of matching the timing of the notes. 
-//      --   Add pendalty for timing miss, and indication of desired / played duration via key::press, key::release 
-// FIXME two successive notes leaves no indication by activation. - TODO distinctLast (?) - won't hold up forever...
-// TODO we need a graphical indicator of WHEN to press the key, for melody especially - easier than duration above - must simply match up with generated notes.
-// FIXME melody game stop results in hanging activated notes
-
 require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
@@ -146,8 +139,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             // =========== GAME CONVERSION ============
 
-
-            // TODO handle game-over conditions. Lose on incorrect is true to inspiration.  Additional lose on complete miss for independent timing
             
             var timeout = 1E3;
             var reward = 1;
@@ -244,7 +235,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
              * We can seed the first note to avoid chicke-and-egg streams
              */
             function createGame() {
-                // TODO convert these as well...
                 setupGameEvents();
 
                 // ReactiveX conversion
@@ -277,15 +267,19 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 var attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluateSimple);
 
                 // various ways the game will end - apply with array did not work...
+                // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
                 var ender = Rx.Observable.merge(
-                    Rx.Observable.fromEvent(gameStop, 'click').do(() => console.log('GAME MANUALLY STOPPED')),
+                    Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
                     Rx.Observable.interval(1E3 * gameTime).take(1).do(() => console.log('GAME TIMED OUT...')),
-                    attempts.filter((a) => !a.success).delay(100)
+                    attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
                     ).publish().refCount(); // make it hot
 
 
                 // update scoreBoard
-                attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => scoreBoard.text(''+score)) 
+                attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
+                    scoreBoard.text(''+score);
+                    scoreBoard.attr('data-score', score);
+                }) 
 
                 // update progress
                 Rx.Observable.timer(0, 500).takeUntil(ender).subscribe((elapsed) => {
@@ -319,7 +313,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // player needs a new key to play!
                 // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
-                var moveForward = attempts.takeUntil(ender).do(updateUIForAttempt).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).delay(150).subscribe((attempt) => {
+                var moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
                     playQueue.shift();
                     if(playQueue.length < 12) 
                         notegen.onNext(flowGenerate())
@@ -333,9 +327,17 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     clearAllKeys();
                     renderStaff([]);
                     updateProgressBar(0,1);
+                    let best = parseInt(localStorage['best']) || 0;
+                    let currentScore = parseInt(scoreBoard.attr('data-score')) || 0;
+                    msg = 'Score: ' + currentScore;
+                    if( currentScore > best ) {
+                        localStorage['best'] = currentScore;
+                        msg += ' - BEST YET! :-D'
+                    }
+                    alert(msg);
                 });
 
-                // do onFinish here and trigger either ender or onComplete of notegen Subject
+
                 var gamePlay = notegen.takeUntil(ender).subscribe((note) => { 
                     // if there are notes already, we want to offset them
                     if(playQueue.length > 0) 
@@ -462,16 +464,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }, 1500);
 
                 });
-
-                // notice plural for now
-                dispatcher.on('keys::clear', function(ev) {
-                    if(!!ev && !!ev.keys)
-                        _.each(ev.keys, clearKey)
-                    else clearAllKeys();
-                });
-
-                dispatcher.on('key::success', successKey);
-                dispatcher.on('key::miss', failKey);
             }
 
 
