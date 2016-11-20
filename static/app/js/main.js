@@ -80,13 +80,12 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 }
 
-
                 // TODO move this into keyboard
                 let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
                 let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
 
                 if(!!midiInput) {
-                    let midiMessages = Rx.Observable.fromEvent(opts.instrument, 'midimessage').map(parseMidi);
+                    let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
                     let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
                     let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
 
@@ -118,13 +117,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameSelect = $('#game-type');
                 showSettings = $('#show-settings');
 
+                gameSelect.on('change', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
 
                 // for system exclusive messages, pass opts: { sysex: true }
                 navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
 
-                gameSelect.on('change', onGameSelect);
                 $('#use-instrument').change(function() {
                     keyboard.output = $(this).prop('checked');
                 });
