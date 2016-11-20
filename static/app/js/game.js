@@ -121,17 +121,22 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
 
         // TODO move this into settings somewhere
-        // do we want to play "out of octave sound"?
         let audibleMiss = true;
-        playerReleases.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::release', key));
-
+        var pp$, pr$; // subscriptions
+        pr$ = playerReleases.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::release', key));
         if(audibleMiss) {
-            attempts.takeUntil(ender).subscribe((attempt) => {
+            //attempts.takeUntil(ender).subscribe((attempt) => {
+            pp$ = attempts.subscribe((attempt) => {
                 key = attempt.success ? attempt.pressed : kb.keysById['0C'];
                 dispatcher.trigger('key::press', key);
                 dispatcher.trigger('key::release', key);
             });
-        } else playerPresses.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::press', key));
+        } else pp$ = playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
+
+        // we want to unsubscribe from these
+        // if we take until ender, there's no warning sound
+        this.presses$ = pp$;
+        this.releases$ = pr$;
 
 
         // player needs a new key to play!
@@ -177,6 +182,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
         dispatcher.trigger('game::cleanup');
+        this.presses$.dispose();
+        this.releases$.dispose();
     }
 
 
