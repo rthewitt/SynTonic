@@ -1,440 +1,330 @@
-/*
- * Game
- *  - start
- *  - update
- *  - schedule
- *  - generate
- *  - clear
- */
-define(['underscore', './dispatcher', './util'], function(_, dispatcher, util) {
+// FIXME pressing a button rapidly can give two points
+define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _, Rx, dispatcher, util) {
 
-    var types = util.gameTypes,
-        state = util.gameStates;
+    const MAX_NOTE_X = 150;
+    const TREBLE_BAR_HEIGHT = 25;
+    //  from keyboard:  ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
+    const NOTES_POS_H = [175, 175, 163, 163, 150, 138, 138, 125, 125, 113, 113, 100];
+    const STREAM_SPEED = -5;
 
-    // TODO move to prototype only
-    // ensure that game flow is dictated outside of functions
-    // so that generate, schedule, etc have return values
-    // This will also move blacklist testing out of functions
 
-    // Defaults for Flow, Melody style gameplay
-    function Game(opts) {
-        if(typeof opts.keyboard === 'undefined')
-            throw new Exception("No instrument provided - did you mean virtual?");
+    var gameStop, 
+        keyboard,
+        gameSelect, 
+        showSettings,
+        scoreBoard, 
+        progressBar;
 
-        this.type = undefined;
-        this.round = undefined;
 
-        // will experiment with moving target scores
-        // trying static 20 goal for now
-        this.baseScore = 9;
-        this.reward = opts.reward || 1;
-        this.penalty = opts.penalty || 6;
-        this.threshold = opts.threshold || 30;
+    /*
+     * UI Related functions
+     */
 
-        // How long before we present the next challenge?
-        // in Aptitude / pitch training noteDelay also determines how long between
-        // notes activation and challenge note is sounded
-        this.noteDelay = typeof opts.noteDelay !== 'undefined' ? opts.noteDelay : 500;
-        this.soundNotes = typeof opts.soundNotes === 'boolean' ? opts.soundNotes : true;
+    function updateProgressBar(cur, max) {
+        let p = Math.round(100 * (cur / max));
+        progressBar.css('width', ''+p+'%');
+        if(p < 10) {
+            progressBar.removeClass('progress-bar-info progress-bar-success progress-bar-warning');
+            progressBar.addClass('progress-bar-danger active');
+        } else if(p < 20) {
+            progressBar.removeClass('progress-bar-info progress-bar-success progress-bar-danger active');
+            progressBar.addClass('progress-bar-warning');
+        } else {
+            progressBar.removeClass('progress-bar-info progress-bar-danger progress-bar-warning active');
+            progressBar.addClass('progress-bar-success');
+        }
+    }
 
-        this.keyboard = opts.keyboard;
-        this.timer = null;
-        this.toPlay = [];
-        this.qMax = opts.numNotes || 3;
-        this.timeout = opts.timeout;
+    function colorKey(key, clazz, duration) {
+        $('#'+key.id).addClass(clazz);
+        if(!!duration) setTimeout(function() {
+            $('#'+key.id).removeClass(clazz);
+        }, duration);
+    }
 
-        this.reset(); // put into input state
+    function clearKey(key) {
+        $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
+    }
 
-        // I am ignoring input for now, because no game!!
-        //dispatcher.on('key::press', this.playerInput, this);
-        //dispatcher.on('key::release', function(key) { }, this);
+    function clearAllKeys() {
+        _.each(keyboard.keys, clearKey);
+    }
+
+    function successKey(key) {
+        colorKey(key, 'success', 200);
+    };
+
+    function failKey(key) {
+        colorKey(key, 'failure', 200);
+    };
+
+    function activateKey(key) {
+        colorKey(key, 'waiting'); 
     }
 
 
+    /*
+     * Sheet music related objects and
+     * functions
+     */
+
+    var treble = {
+        canvas: undefined,
+        ctx: undefined,
+    };
+
+    var bass = {
+        canvas: undefined,
+        ctx: undefined,
+    };
+
+    // TODO
+    //var sharp = new Image();
+    //sharp.src = 'img/sharp.gif';
+
+    function drawNote(note) {
+        let ctx = treble.ctx;
+
+        // lines for special notes
+        if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ) {
+            ctx.beginPath();
+            ctx.moveTo(note.x-15, note.y);
+            ctx.lineTo(note.x+15, note.y);
+            ctx.stroke();
+        } else if(note.id === '3D' || note.id === '3Ds') {
+            ctx.beginPath();
+            ctx.moveTo(note.x-15, note.y+12);
+            ctx.lineTo(note.x+15, note.y+12);
+            ctx.stroke();
+        }
+
+        // draw note
+        ctx.beginPath();
+        if(note.name.endsWith('s')) {
+            ctx.fillStyle = 'red';
+        }
+        ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'black';
+    }
+
+    function renderCleff() {
+        renderStaff([], true) // just for background
+        // treble-cleff
+        let ctx = treble.ctx;
+        let tc = new Image(); 
+        tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
+        tc.src = 'img/treble-cleff.gif';
+    }
+
+    function renderStaff(notes, preRender) {
+
+        let ctx = treble.ctx,
+            start = preRender ? 0 : 70;
+
+        ctx.clearRect(70, 40, 600, 150);
+            ctx.beginPath();
+        for(var x=2; x<=6; x++) {
+            let pos = x*TREBLE_BAR_HEIGHT;
+            ctx.moveTo(start,pos);
+            ctx.lineTo(600,pos);
+        }
+        ctx.stroke();
+        notes.map(drawNote);
+    }
+
+
+
+     // Note: object to be rendered on staff
+     // has pointer to relevant key
+    function Note(id) {
+        let n = keyboard.noteNames;
+
+        this.id = id; 
+        this.key = keyboard.keysById[id];
+        this.name = this.key.note;
+        this.x = MAX_NOTE_X;
+        this.y = NOTES_POS_H[n.indexOf(this.name)]
+    }
+
+
+
+    /*
+     * Game specific functions
+     */
+
+    // started out as hit/miss, then changed to score calculation
+    function evaluateSimple(attempt) {
+        let success = attempt.target.id === attempt.pressed.id;
+        let delta = success ?  this.reward : this.penalty;
+        console.log('delta '+delta);
+        return Object.assign({}, attempt, 
+                { success: success, modifier: delta });
+    }
+
+
+    function flowGenerate() {
+        let first = keyboard.keysById['3C'],
+            last = keyboard.keysById['3B'],
+            min = keyboard.keys.indexOf(first),
+            max = keyboard.keys.indexOf(last),
+            n;
+        do {
+            n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
+        } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
+        return new Note(keyboard.keys[n].id);
+    }
+
+
+    function updateUIForAttempt(attempt) {
+        feedback = attempt.success ? successKey : failKey;
+        feedback(attempt.pressed);
+    }
+
+
+    function Game(opts) {
+
+        // Flow variation
+        this.reward = 1;
+        this.penalty = 0;
+
+        let gameTime = 20;
+
+
+
+
+        var self = this;
+        let playerPresses = opts.playerPresses,
+            playerReleases = opts.playerReleases;
+
+
+        // "generator" for notes
+        var notegen = new Rx.Subject();
+
+        // state variable
+        var playQueue = [];
+
+        // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
+        let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluateSimple, self);
+
+        // various ways the game will end - apply with array did not work...
+        // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
+        let ender = Rx.Observable.merge(
+            Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
+            Rx.Observable.interval(1E3 * gameTime).take(1).do(() => console.log('GAME TIMED OUT...')),
+            attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
+            ).publish().refCount(); // make it hot
+
+
+        // update scoreBoard
+        attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
+            scoreBoard.text(''+score);
+            self.score = score;
+        }) 
+
+        // update progress
+        Rx.Observable.timer(0, 500).takeUntil(ender).subscribe((elapsed) => {
+            let max = 2 * gameTime,
+                left = max - (elapsed+1); // +1 to end animation at zero
+            updateProgressBar(left > 0 ? left : left, max);
+        });
+
+
+        let noteStream = Rx.Observable.interval(16).takeUntil(ender).scan((v, tick) => { 
+            let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
+            playQueue.map((note) => {
+                note.x = note.x + tempo;
+            });
+            return tempo;
+        }, STREAM_SPEED).subscribe(() => renderStaff(playQueue));
+
+
+        // TODO move this into settings somewhere
+        // do we want to play "out of octave sound"?
+        let audibleMiss = true;
+        playerReleases.subscribe((key) => dispatcher.trigger('key::release', key));
+        if(audibleMiss) {
+            attempts.subscribe((attempt) => {
+                key = attempt.success ? attempt.pressed : keyboard.keysById['0C'];
+                dispatcher.trigger('key::press', key);
+                dispatcher.trigger('key::release', key);
+            });
+        } else playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
+
+
+        // player needs a new key to play!
+        // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
+        let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
+            playQueue.shift();
+            if(playQueue.length < 12) 
+                notegen.onNext(flowGenerate())
+            // advance the keyboard UI
+            activateKey(playQueue[0].key); 
+        },
+        (err) => console.log(err),
+        // on complete (game ended)
+        () => {
+            console.log('ENDING GAME');
+            clearAllKeys();
+            renderStaff([]);
+            updateProgressBar(0,1);
+            let best = parseInt(localStorage['best']) || 0;
+            let currentScore = parseInt(self.score) || 0;
+            msg = 'Score: ' + currentScore;
+            if( currentScore > best ) {
+                localStorage['best'] = currentScore;
+                msg += ' - BEST YET! :-D'
+            }
+            alert(msg);
+        });
+
+
+        let gamePlay = notegen.takeUntil(ender).subscribe((note) => { 
+            // if there are notes already, we want to offset them
+            if(playQueue.length > 0) 
+                note.x = playQueue[playQueue.length-1].x + 80; // place at end of staff
+            playQueue.push(note); // always push!
+        });
+
+        let startNote = new Note(keyboard.MIDDLE_C);
+        notegen.onNext(startNote);
+        activateKey(startNote.key); 
+        for(let z=0; z<11; z++) {
+            notegen.onNext(flowGenerate());
+        }
+        gameStop.show(); 
+        scoreBoard.text('0');
+    }
+
+    Game.prototype.evaluate = evaluateSimple;
+
     // avoid memory leaks!
     Game.prototype.cleanup = function() {
-        dispatcher.off('key::press', this.playerInput);
-        //dispatcher.off('key::release'...)
     }
 
 
     Game.prototype.start = function() {
-        this.clear();
-        dispatcher.trigger('keys::clear'); // only clears keypresses, TODO rename
-        this.state = state.STARTED;
-        this.keyboard.silent = false;
-        this.score = this.baseScore;
-        dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
-        this.next();
     }
 
+    // when the app / dom is ready...
+    function initialize(instrument) {
+        treble.canvas = $('#treble-staff')[0];
+        treble.ctx = treble.canvas.getContext('2d');
+        gameStop = $('#stop-game');
+        progressBar = $('#progress-meter');
+        scoreBoard = $('#scoreboard');
 
-    // must be called with context
-    function handleTimeout() {
-        this.clear();
-        this.state = state.ANIMATING;
-        this.score -= this.penalty;
-        dispatcher.trigger('game::score', { current: this.score, max: this.threshold });
+        // TODO see main.js for TODO
+        // remove UI functions from this file
+        keyboard = instrument;
 
-        if(this.score <= 0) {
-            this.lose();
-            return;
-        }
-
-        var self = this;
-        dispatcher.trigger('game::timeout', { onReady: function() {
-            // We may have reset the game. This is not an optimial solution
-            // We want to avoid this state checking.
-            if( self.state === state.ANIMATING ) {
-                self.state = state.STARTED;
-                self.next();
-            }
-        } });
+        updateProgressBar(1,1);
+        renderCleff();
     }
-
-
-    Game.prototype.next = function() {
-        console.log('game BASIC next function');
-        this.generate(this.qMax);
-        this.schedule();
-        var self = this;
-        this.timer = setTimeout(function() { handleTimeout.call(self) }, this.timeout);
-    };
-
-   
-    Game.prototype.win = function() {
-        this.clear();
-        this.state = state.ANIMATING;
-        var self = this;
-        dispatcher.trigger('game::won', { onFinish: function() {
-            self.state = state.WON;
-        } });
-    };
-
-
-    Game.prototype.lose = function() {
-        this.clear();
-        this.state = state.ANIMATING;
-        var self = this;
-        dispatcher.trigger('game::lost');
-    };
-
-
-    Game.prototype.playerInput = function(key) {
-        if(this.state === state.INPUT_CONTROL) {
-            if(key.id == this.keyboard.MIDDLE_C) {
-                var self = this;
-                setTimeout(function() {
-                    self.start();
-                }, 1000);
-            }
-            return;
-        }
-
-        if(this.timer === null) return;
-        var correct = this.toPlay.length > 0 && 
-            key.id == this.toPlay[0].id ? true : false;
-        this.update(correct, key);
-    };
-
-
-    // TODO remove score duplication
-    // flow, memory oriented - I may separate implementations from proto
-    Game.prototype.update = function(success, justPlayed) {
-
-        this.score = success ? 
-            this.score + this.reward : this.score - this.penalty;
-
-        dispatcher.trigger('game::score', { current: this.score, max: this.threshold });
-
-        if(success) {
-            var justPlayed = this.toPlay.shift();
-
-            // I think variable was because when a correct note was played (and subsequently turned green)
-            // the UI would clear
-            var shouldWait = _.some(this.toPlay, function(key) { return key.id === justPlayed.id; });
-            if(!shouldWait) {
-                dispatcher.trigger('keys::clear', { keys: [ justPlayed ] });
-            }
-
-            dispatcher.trigger('key::success', justPlayed);
-
-            if(this.toPlay.length == 0) {
-                this.clear();
-                if(this.score >= this.threshold) this.win();
-                else this.next();
-            } 
-        } else {
-            dispatcher.trigger('key::miss', justPlayed);
-            if(this.timer !== null) clearTimeout(this.timer);
-            if(this.score <= 0) this.lose();
-            else {
-                var self = this;
-                this.timer = setTimeout(function() { handleTimeout.call(self); }, this.timeout);
-            }
-        }
-    };
-
-
-    /*
-     * Game does not control the instrument
-     * or UI directly - so we schedule a request
-     */
-    Game.prototype.schedule = function() {
-        console.log('apt BASIC schedule');
-        // IIRC this default method schedules in a "melody-like" fashion, one after another with delay
-        for(var i=0; i < this.toPlay.length; i++) { 
-            dispatcher.trigger('game::activate', { keys: [ this.toPlay[i] ], when: (i+1) * this.noteDelay, sound: this.soundNotes });
-        }
-    };
-
-
-    /* 
-     * generate notes to play or show onscreen
-     * different game types will generate
-     * note(s), patterns, chords, scales, etc
-     */
-    Game.prototype.generate = function(num) {
-        for(var x=0; x<num; x++) {
-            n = undefined;
-            do {
-                n = Math.floor( Math.random() * (this.keyboard.keys.length-1) ); // those parens are necessary!
-            } while(this.keyboard.blacklist.indexOf(n + this.keyboard.min) !== -1); // blacklist currently in MIDI
-            this.toPlay.push(this.keyboard.keys[n]);
-        }
-    };
-
-
-    /*
-     * Currently this is used as "clear milestone"
-     * as opposed to completely resetting state.
-     * Score is not affected and the game continues
-     */
-    Game.prototype.clear = function() {
-        this.toPlay = []; // ensure single reference?
-        if(this.timer !== null) {
-            clearTimeout(this.timer);
-            this.timer = null;
-        }
-        // if I add keys::clear to this, I should remove it from reset, etc
-        // will I ever want to clear the milestone / game WITHOUT ui clear?
-    };
-
-    
-    // FIXME clears existing timer, but not next?
-    Game.prototype.reset = function() {
-        this.clear(); // does not clear score, is only used to clear game timer
-        this.score = 0; // is there a better place for this?
-        dispatcher.trigger('game::score', { initial: true, current: this.score, max: this.threshold });
-        dispatcher.trigger('keys::clear'); 
-        this.state = state.INPUT_CONTROL;
-        //this.keyboard.silent = true;
-    };
-
-    
-    /* TODO
-     * IMPORTANT:
-     * this function is overridden because we want to put the game
-     * into an animating state and then start a second period in which
-     * the game is actually awaiting user input. We are going to hack
-     * that behavior by using a custom next function but this change
-     * should be backported, where a normal game neglects to do so.
-     */
-    function MELODY_next() {
-        this.generate(this.qMax);
-        this.state = state.ANIMATING;
-        this.schedule();
-        var ignorePlayerInputTime = this.noteDelay*(this.toPlay.length+1) // after the last note is played
-        var self = this;
-        setTimeout(function() {
-            if(self.state === state.ANIMATING) { // may have been reset
-                self.state = state.STARTED; // allow user input again
-                self.timer = setTimeout(function() { handleTimeout.call(self) }, self.timeout);
-            }
-        }, ignorePlayerInputTime);
-    };
-
-
-    /*
-     *
-     * this will be used for memory game 
-     * whole whole half whole whole whole half 
-     * maximum for base key: 6Cs
-     * 1. select random as base key 
-     * 2. obtain keys for scale structure above
-     * 3. choose num random from those, play
-     *
-     */
-    function MELODY_generate(num) {
-        // we could use last octave, 
-        // but why not allow all scales?
-        var maxBase = this.keyboard.idxOfId('6Cs');
-
-        //var base = Math.floor( Math.random() * (maxBase+1) );
-        
-        // TESTING C MAJOR SCALE
-        var base = this.keyboard.idxOfId('3C');
-
-        // whole whole half whole whole whole half 
-        // steps: [0,2,2,1,2,2,2,1]
-        // major scale [0,2,4,5,7,9,11,12]
-        scale = _.map([0,2,4,5,7,9,11,12], function(step) {
-            return base + step;
-        });
-
-        console.log(scale);
-
-        var n, x, key;
-        for(x=0; x<num; x++) {
-            n = undefined, key = undefined;
-            do {
-                n = Math.floor( Math.random() * scale.length );
-                key = this.keyboard.keys[scale[n]];
-            } while(this.toPlay.indexOf(key) !== -1); // no duplicates for now
-            this.toPlay.push(key);
-        }
-    }
-
-    /*
-     * Will generate only C notes for round 1
-     */
-    function APT_generate(num) {
-        console.log('apt custom GENERATE');
-
-        var cKeys = this.keyboard.keysByNote['C'],
-            max = cKeys.length; // exclusive
-
-        for(var x=0; x<num; x++) {
-            n = Math.floor( Math.random() * max );
-            this.toPlay.push(cKeys[n]);
-        }
-    };
-
-
-    // activate group (octave or keys)
-    function APT_schedule() {  
-        console.log('apt CUSTOM schedule');
-        if(this.toPlay.length !== 1) 
-            throw new Exception("Too many notes queued");
-
-        var key = this.toPlay[0];
-        var maskedKeys = this.keyboard.keysByNote[ key.note ];
-
-        // must guarantee order
-        setTimeout(function() {
-            console.log('want to activate '+maskedKeys.length+'  keys');
-            dispatcher.trigger('game::activate', { keys: maskedKeys });
-            dispatcher.trigger('game::activate', { keys: [ key ], sound: true });
-        }, this.noteDelay);
-    }
-
-
-    function APT_update(success, justPlayed) {
-
-        this.score = success ? 
-            this.score + this.reward : this.score - this.penalty;
-
-        dispatcher.trigger('game::score', { current: this.score, max: this.threshold });
-
-        if(success) {
-            this.toPlay.shift();
-            var shouldWait = _.some(this.toPlay, function(key) { return key.id === justPlayed.id; });
-            if(!shouldWait) dispatcher.trigger('keys::clear');
-
-            dispatcher.trigger('key::success', justPlayed);
-
-            if(this.toPlay.length !== 0)
-                throw Exception("Game queue for aptitude style has exceeded maximum");
-
-            this.clear();
-            if(this.score >= this.threshold) this.win();
-            else this.next();
-        } else {
-            dispatcher.trigger('key::miss', justPlayed);
-            if(this.timer !== null) clearTimeout(this.timer);
-            if(this.score <= 0) this.lose();
-            else {
-                var self = this;
-                this.timer = setTimeout(function() { handleTimeout.call(self); }, this.timeout);
-            }
-        }
-    };
-
-
-    // For flow only : TODO use prototypes or something instead of this patchwork!!!
-    function FLOW_generate(num) {
-
-        // FIXME this should just be a min/max thing using original function
-        //var cKeys = this.keyboard.getMiddleCKeys();
-        var first = this.keyboard.keysById['3C'],
-            last = this.keyboard.keysById['3B'],
-
-            min = this.keyboard.keys.indexOf(first),
-            max = this.keyboard.keys.indexOf(last);
-
-        for(var x=0; x<num; x++) {
-            n = undefined;
-            do {
-                n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
-            } while(this.keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
-            this.toPlay.push(this.keyboard.keys[n]);
-        }
-    };
-
-
-    function _createAptitudeGame(opts) {
-        opts.numNotes = 1; // force single note play
-        opts.reward = 1;
-        opts.penalty = 3;
-        opts.threshold = 20;
-
-        var game = new Game(opts);
-        game.type = types.APT;
-        game.timeout = game.timeout || 4000; // let them think
-
-        game.generate = APT_generate; // start with C notes only
-        game.schedule = APT_schedule; // show many, play one
-        game.update = APT_update; // clear all keys
-        return game;
-    }
-
-
-    function _createMemoryGame(opts) {
-        opts.numNotes = opts.numNotes || 3;
-        opts.timeout = opts.timeout || 
-            (opts.numNotes * (opts.keyboard.output ? 3000 : 2000));
-
-        var game = new Game(opts);
-        game.type = types.MELODY;
-
-        game.generate = MELODY_generate;
-        // TODO remove this once we subsume user-input behavior
-        game.next = MELODY_next;
-        return game;
-    }
-
-
-    // Flow is essentially one player real time, so we do NOT play the note
-    // This means we also want a zero refresh time after playing the note
-    // if possible...
-    function _createFlowGame(opts) {
-        opts.numNotes = 1;
-        opts.timeout = opts.timeout || (opts.keyboard.output ? 3000 : 1000); 
-        opts.noteDelay = 0;
-        opts.soundNotes = false;
-
-        var game = new Game(opts);
-        game.type = types.FLOW;
-
-        game.generate = FLOW_generate; // TODO prototypes
-        return game;
-    }
-
 
     return {
-        createMemoryGame: _createMemoryGame,
-        createFlowGame: _createFlowGame,
-        createAptitudeGame: _createAptitudeGame
+        Flow: Game,
+        init: initialize
     }
 
 });

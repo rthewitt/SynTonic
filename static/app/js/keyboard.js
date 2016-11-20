@@ -75,6 +75,8 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
         this.MIDDLE_C = MIDDLE_C;
         this.MIDDLE_OCTAVE = MIDDLE_OCTAVE;
 
+        this.noteNames = noteNames;
+
         // only 88-keys for now
         this.octaves = createKeyboardLayout();
         // a way to cross reference from MIDI notes
