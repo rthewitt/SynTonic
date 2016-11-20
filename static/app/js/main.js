@@ -120,6 +120,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameSelect.on('change', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
+                // requires a game to exist of course
+                dispatcher.on('game::over', displayEndScore);
 
                 // for system exclusive messages, pass opts: { sysex: true }
                 navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
@@ -129,6 +131,22 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 });
 
                 ws = new WebSocket('ws://localhost:8888');
+            }
+
+
+            function displayEndScore (success) {
+                let best = parseInt(localStorage['best']) || 0;
+                let currentScore = parseInt(game.score) || 0;
+                msg = 'Score: ' + currentScore;
+                if( currentScore > best ) {
+                    localStorage['best'] = currentScore;
+                    msg += ' - BEST YET! :-D'
+                }
+                alert(msg);
+                setTimeout(function() {
+                    gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
+                    // at the very least, just create a function for newGame and call that
+                }, 1000);
             }
 
 
@@ -153,16 +171,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         break;
                 }
 
-                dispatcher.on('game::over', function(success) {
-                    let best = parseInt(localStorage['best']) || 0;
-                    let currentScore = parseInt(game.score) || 0;
-                    msg = 'Score: ' + currentScore;
-                    if( currentScore > best ) {
-                        localStorage['best'] = currentScore;
-                        msg += ' - BEST YET! :-D'
-                    }
-                    alert(msg);
-                });
             }
 
             var app = new Marionette.Application();

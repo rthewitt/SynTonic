@@ -1,4 +1,5 @@
 // FIXME pressing a button rapidly can give two points
+// TODO ensure that evaluate / evaluateSimple is only running once, it logs multiple times...
 define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, MusicSheet, dispatcher, util) {
 
     const STREAM_SPEED = -5;
@@ -33,7 +34,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     function evaluateSimple(attempt) {
         let success = attempt.target.id === attempt.pressed.id;
         let delta = success ?  this.reward : this.penalty;
-        console.log('delta '+delta);
         return Object.assign({}, attempt, 
                 { success: success, modifier: delta });
     }
@@ -86,10 +86,12 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
 
+
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
         let ender = Rx.Observable.merge(
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
+            Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             Rx.Observable.interval(1E3 * gameTime).take(1).do(() => console.log('GAME TIMED OUT...')),
             attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
             ).publish().refCount(); // make it hot
@@ -121,14 +123,15 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // TODO move this into settings somewhere
         // do we want to play "out of octave sound"?
         let audibleMiss = true;
-        playerReleases.subscribe((key) => dispatcher.trigger('key::release', key));
+        playerReleases.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::release', key));
+
         if(audibleMiss) {
-            attempts.subscribe((attempt) => {
+            attempts.takeUntil(ender).subscribe((attempt) => {
                 key = attempt.success ? attempt.pressed : kb.keysById['0C'];
                 dispatcher.trigger('key::press', key);
                 dispatcher.trigger('key::release', key);
             });
-        } else playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
+        } else playerPresses.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::press', key));
 
 
         // player needs a new key to play!
@@ -172,7 +175,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     Game.prototype.evaluate = evaluateSimple;
 
     // avoid memory leaks!
-    Game.prototype.cleanup = function() {
+    Game.prototype.cleanup = function() { 
+        dispatcher.trigger('game::cleanup');
     }
 
 
