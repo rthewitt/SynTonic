@@ -1,12 +1,7 @@
 // FIXME pressing a button rapidly can give two points
-define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _, Rx, dispatcher, util) {
+define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, MusicSheet, dispatcher, util) {
 
-    const MAX_NOTE_X = 150;
-    const TREBLE_BAR_HEIGHT = 25;
-    //  from keyboard:  ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
-    const NOTES_POS_H = [175, 175, 163, 163, 150, 138, 138, 125, 125, 113, 113, 100];
     const STREAM_SPEED = -5;
-
 
     var gameStop, 
         keyboard,
@@ -15,10 +10,8 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
         scoreBoard, 
         progressBar;
 
+    var Note = MusicSheet.Note;
 
-    /*
-     * UI Related functions
-     */
 
     function updateProgressBar(cur, max) {
         let p = Math.round(100 * (cur / max));
@@ -35,123 +28,6 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
         }
     }
 
-    function colorKey(key, clazz, duration) {
-        $('#'+key.id).addClass(clazz);
-        if(!!duration) setTimeout(function() {
-            $('#'+key.id).removeClass(clazz);
-        }, duration);
-    }
-
-    function clearKey(key) {
-        $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
-    }
-
-    function clearAllKeys() {
-        _.each(keyboard.keys, clearKey);
-    }
-
-    function successKey(key) {
-        colorKey(key, 'success', 200);
-    };
-
-    function failKey(key) {
-        colorKey(key, 'failure', 200);
-    };
-
-    function activateKey(key) {
-        colorKey(key, 'waiting'); 
-    }
-
-
-    /*
-     * Sheet music related objects and
-     * functions
-     */
-
-    var treble = {
-        canvas: undefined,
-        ctx: undefined,
-    };
-
-    var bass = {
-        canvas: undefined,
-        ctx: undefined,
-    };
-
-    // TODO
-    //var sharp = new Image();
-    //sharp.src = 'img/sharp.gif';
-
-    function drawNote(note) {
-        let ctx = treble.ctx;
-
-        // lines for special notes
-        if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ) {
-            ctx.beginPath();
-            ctx.moveTo(note.x-15, note.y);
-            ctx.lineTo(note.x+15, note.y);
-            ctx.stroke();
-        } else if(note.id === '3D' || note.id === '3Ds') {
-            ctx.beginPath();
-            ctx.moveTo(note.x-15, note.y+12);
-            ctx.lineTo(note.x+15, note.y+12);
-            ctx.stroke();
-        }
-
-        // draw note
-        ctx.beginPath();
-        if(note.name.endsWith('s')) {
-            ctx.fillStyle = 'red';
-        }
-        ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
-        ctx.fill();
-        ctx.fillStyle = 'black';
-    }
-
-    function renderCleff() {
-        renderStaff([], true) // just for background
-        // treble-cleff
-        let ctx = treble.ctx;
-        let tc = new Image(); 
-        tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
-        tc.src = 'img/treble-cleff.gif';
-    }
-
-    function renderStaff(notes, preRender) {
-
-        let ctx = treble.ctx,
-            start = preRender ? 0 : 70;
-
-        ctx.clearRect(70, 40, 600, 150);
-            ctx.beginPath();
-        for(var x=2; x<=6; x++) {
-            let pos = x*TREBLE_BAR_HEIGHT;
-            ctx.moveTo(start,pos);
-            ctx.lineTo(600,pos);
-        }
-        ctx.stroke();
-        notes.map(drawNote);
-    }
-
-
-
-     // Note: object to be rendered on staff
-     // has pointer to relevant key
-    function Note(id) {
-        let n = keyboard.noteNames;
-
-        this.id = id; 
-        this.key = keyboard.keysById[id];
-        this.name = this.key.note;
-        this.x = MAX_NOTE_X;
-        this.y = NOTES_POS_H[n.indexOf(this.name)]
-    }
-
-
-
-    /*
-     * Game specific functions
-     */
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
@@ -177,8 +53,8 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
 
 
     function updateUIForAttempt(attempt) {
-        feedback = attempt.success ? successKey : failKey;
-        feedback(attempt.pressed);
+        if(attempt.success) keyboard.successKey(attempt.pressed);
+        else keyboard.failKey(attempt.pressed);
     }
 
 
@@ -190,13 +66,16 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
 
         let gameTime = 20;
 
-
-
-
-        var self = this;
         let playerPresses = opts.playerPresses,
             playerReleases = opts.playerReleases;
 
+        // more concise code
+        let kb = keyboard;
+            clearAllKeys = kb.clearAllKeys.bind(kb);
+            activateKey = kb.activateKey.bind(kb);
+            evaluate = this.evaluate.bind(this);
+
+        var self = this;
 
         // "generator" for notes
         var notegen = new Rx.Subject();
@@ -205,7 +84,7 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
         var playQueue = [];
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluateSimple, self);
+        let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
 
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
@@ -236,7 +115,7 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
                 note.x = note.x + tempo;
             });
             return tempo;
-        }, STREAM_SPEED).subscribe(() => renderStaff(playQueue));
+        }, STREAM_SPEED).subscribe(() => MusicSheet.renderStaff(playQueue));
 
 
         // TODO move this into settings somewhere
@@ -245,7 +124,7 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
         playerReleases.subscribe((key) => dispatcher.trigger('key::release', key));
         if(audibleMiss) {
             attempts.subscribe((attempt) => {
-                key = attempt.success ? attempt.pressed : keyboard.keysById['0C'];
+                key = attempt.success ? attempt.pressed : kb.keysById['0C'];
                 dispatcher.trigger('key::press', key);
                 dispatcher.trigger('key::release', key);
             });
@@ -259,6 +138,7 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
             if(playQueue.length < 12) 
                 notegen.onNext(flowGenerate())
             // advance the keyboard UI
+            //debugger;
             activateKey(playQueue[0].key); 
         },
         (err) => console.log(err),
@@ -266,16 +146,9 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
         () => {
             console.log('ENDING GAME');
             clearAllKeys();
-            renderStaff([]);
+            MusicSheet.renderStaff([]);
             updateProgressBar(0,1);
-            let best = parseInt(localStorage['best']) || 0;
-            let currentScore = parseInt(self.score) || 0;
-            msg = 'Score: ' + currentScore;
-            if( currentScore > best ) {
-                localStorage['best'] = currentScore;
-                msg += ' - BEST YET! :-D'
-            }
-            alert(msg);
+            dispatcher.trigger('game::over');
         });
 
 
@@ -286,7 +159,7 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
             playQueue.push(note); // always push!
         });
 
-        let startNote = new Note(keyboard.MIDDLE_C);
+        let startNote = new Note(kb.MIDDLE_C);
         notegen.onNext(startNote);
         activateKey(startNote.key); 
         for(let z=0; z<11; z++) {
@@ -308,18 +181,17 @@ define(['jquery', 'underscore', 'rxjs', './dispatcher', './util'], function($, _
 
     // when the app / dom is ready...
     function initialize(instrument) {
-        treble.canvas = $('#treble-staff')[0];
-        treble.ctx = treble.canvas.getContext('2d');
         gameStop = $('#stop-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
+
 
         // TODO see main.js for TODO
         // remove UI functions from this file
         keyboard = instrument;
 
         updateProgressBar(1,1);
-        renderCleff();
+        MusicSheet.renderCleff();
     }
 
     return {

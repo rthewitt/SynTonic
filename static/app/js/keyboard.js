@@ -1,4 +1,4 @@
-define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio) {
+define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatcher, _, audio) {
 
     // TODO add a sortable to keys such that keys are sorted by keyboard order?
     // would allow me to get keys by octave and ensure correct layout for random
@@ -118,6 +118,11 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
     };
 
 
+    // ===================
+    // MIDI Functions
+    // ===================
+    
+
     Keyboard.prototype.playNote = function(key, duration) {
         console.log('should we midi? '+this.output);
         if(this.output) {
@@ -170,6 +175,44 @@ define(['./dispatcher', 'underscore', './audio'], function(dispatcher, _, audio)
         output.send( [0x90, noteId, 0x7f] );  // full velocity
         output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
     }
+    
+
+    // ===================
+    // Graphical Functions
+    // ===================
+    
+
+    Keyboard.prototype.colorKey = function(key, clazz, duration) {
+        $('#'+key.id).addClass(clazz);
+        if(!!duration) setTimeout(function() {
+            $('#'+key.id).removeClass(clazz);
+        }, duration);
+    }
+
+
+    Keyboard.prototype.clearKey = function(key) {
+        $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
+    }
+
+
+    Keyboard.prototype.clearAllKeys = function(key) {
+        this.keys.forEach(this.clearKey);
+    }
+
+
+    Keyboard.prototype.activateKey = function(key) {
+        this.colorKey(key, 'waiting'); 
+    }
+
+
+    Keyboard.prototype.successKey = function(key) {
+        this.colorKey(key, 'success', 200);
+    };
+
+
+    Keyboard.prototype.failKey = function(key) {
+        this.colorKey(key, 'failure', 200);
+    };
 
 
     // exports

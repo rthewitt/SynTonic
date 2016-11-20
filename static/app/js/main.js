@@ -19,11 +19,11 @@ require.config({
 });
 
 
-require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './keyboard',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './sheet', 'keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap'
-        ], function($, _, Rx, Backbone, Marionette, Mustache, Games, Keyboard, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
 
             var game = null;
@@ -112,6 +112,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // TODO move everything keyboard related into keyboard
                 // so that we can pass instrument into the Game constructor once again
                 // (e.g., clearAllKeys and other UI functions)
+                MusicSheet.init(keyboard); // set up the Dom
                 Games.init(keyboard); // set up the Dom
 
                 gameSelect = $('#game-type');
@@ -153,8 +154,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         break;
                 }
 
-                // TODO
-                dispatcher.on('game::lost', function(ev) { });
+                dispatcher.on('game::over', function(success) {
+                    let best = parseInt(localStorage['best']) || 0;
+                    let currentScore = parseInt(game.score) || 0;
+                    msg = 'Score: ' + currentScore;
+                    if( currentScore > best ) {
+                        localStorage['best'] = currentScore;
+                        msg += ' - BEST YET! :-D'
+                    }
+                    alert(msg);
+                });
             }
 
             var app = new Marionette.Application();
