@@ -33,8 +33,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             // FIXME remove this, or document blacklist in UI
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
 
-            var games = util.gameTypes,
-                gameStates = util.gameStates;
+            var games = util.gameTypes;
 
             var midi = null;
             var midiInput; // need a handle for event listener
@@ -90,23 +89,26 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
     
             function renderCleff() {
-                renderStaff([]) // just for background
+                renderStaff([], true) // just for background
                 let ctx = treble.ctx;
                 var tc = new Image();
                 tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
                 tc.src = 'img/treble-cleff.gif';
             }
 
-            function renderStaff(notes) {
-                let ctx = treble.ctx;
+            function renderStaff(notes, preRender) {
+
+                let ctx = treble.ctx,
+                    start = preRender ? 0 : 70;
+
                 ctx.clearRect(70, 40, 600, 150);
+                    ctx.beginPath();
                 for(var x=2; x<=6; x++) {
                     let pos = x*TREBLE_BAR_HEIGHT;
-                    ctx.beginPath();
-                    ctx.moveTo(0,pos);
+                    ctx.moveTo(start,pos);
                     ctx.lineTo(600,pos);
-                    ctx.stroke();
                 }
+                ctx.stroke();
                 notes.map(drawNote);
             }
 
@@ -144,6 +146,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             var reward = 1;
             var penalty = 0;
             var gameTime = 20;
+
 
 
             function updateProgressBar(cur, max) {
@@ -352,7 +355,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     notegen.onNext(flowGenerate());
                 }
                 gameStop.show(); 
-                renderCleff();
                 scoreBoard.text('0');
             }
 
@@ -399,7 +401,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 function onMidiSuccess(mAccess) {
                     midi = window.MIDI = mAccess;
                     listMidiIO();
-                    createGame();
+                    // TODO move this elsewhere
+                    updateProgressBar(1,1);
+                    renderCleff();
+                    setTimeout(createGame, 1000);
                 }
 
                 function onMidiFailure(msg) {
