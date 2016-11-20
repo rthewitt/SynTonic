@@ -9,13 +9,18 @@ h1 {
 a {text-decoration: none; color: #000; cursor: pointer;}
 a:hover {color: #FFC0CB;}
 
+#piano-top {
+    display: block;
+    margin-top: 80px;
+    background-color: #98B6C0;
+    height: 400px;
+}
 
 #piano {
     background-color: #272927;
     color: #000000;
     left: 50%;
     margin-left: -50%;
-    margin-top: -200px;
     position: absolute;
     text-align: center;
     top: 350px; 

@@ -1,7 +1,7 @@
 html, body {
 	height: 100%;
 	font-family: Philosopher, Tahoma; 
-    background-color: #F2F2F2;
+    background-color: #C8D9DF;
 }
 
 body { 
@@ -34,6 +34,17 @@ nav.right {
     margin-right: 5px;
 }
 
+.sheet-music {
+    position: absolute;
+    background-image: url(../img/parchment-paper-white.jpg);
+    top: 120px;
+    height: 200px;
+    width: 700px;
+    left: 50%;
+    margin-left: -350px;
+    text-align: center;
+}
+
 #scoreboard {
     color: red;
     font-size: 48px;
@@ -42,8 +53,9 @@ nav.right {
 }
 
 #round-progress {
-    display: block;
-    margin-top: 450px;
-    margin-left: 300px;
+    position: absolute;
+    top: 650px;
+    left: 50%;
+    margin-left: -600px;
     width: 1200px;
 }
