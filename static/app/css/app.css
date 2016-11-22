@@ -1,3 +1,8 @@
+@font-face {
+    font-family: 'FreeSerif';
+    src: url(../fonts/freefont/FreeSerif.woff)
+}
+
 html, body {
 	height: 100%;
 	font-family: Philosopher, Tahoma; 

@@ -29,7 +29,7 @@
   </script>
   <![endif]-->
 	<nav class="left">
-		<h1>SynTonic</h1>
+		<h1 id="serif" style="font-family: FreeSerif">SynTonic</h1>
         <select id="game-type" style="display:none;">
             <option selected="selected" value="0">Flow</option>
             <option value="1">Melody</option>
@@ -551,7 +551,8 @@
             <source src="sounds/effects/buzzer.mp3" type="audio/mpeg"></source>
         </audio>
     </div>
-    <div class="sheet-music">
+    <!-- Preload our custom font! -->
+    <div class="sheet-music" style="font-family: FreeSerif;">
         <canvas id="treble-staff" width="600" height="190">
         </canvas>
     </div>

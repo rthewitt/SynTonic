@@ -2,8 +2,10 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
 
     const MAX_NOTE_X = 150;
     const TREBLE_BAR_HEIGHT = 25;
+    const UNDERBAR = 177;
     //  from keyboard:  ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
-    const NOTES_POS_H = [175, 175, 163, 163, 150, 138, 138, 125, 125, 113, 113, 100];
+    //const NOTES_POS_H = [175, 175, 163, 163, 150, 138, 138, 125, 125, 113, 113, 100];
+    const NOTES_POS_H = [184, 184, 172, 172, 157, 145, 145, 132, 132, 120, 120, 107];
 
     var treble = {
         canvas: undefined,
@@ -38,26 +40,27 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         let ctx = treble.ctx;
 
         // lines for special notes
-        if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ) {
+        if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ||
+                note.id === '3D' || note.id === '3Ds') {
             ctx.beginPath();
-            ctx.moveTo(note.x-15, note.y);
-            ctx.lineTo(note.x+15, note.y);
-            ctx.stroke();
-        } else if(note.id === '3D' || note.id === '3Ds') {
-            ctx.beginPath();
-            ctx.moveTo(note.x-15, note.y+12);
-            ctx.lineTo(note.x+15, note.y+12);
+            ctx.moveTo(note.x-10, UNDERBAR);
+            ctx.lineTo(note.x+40, UNDERBAR);
             ctx.stroke();
         }
 
+        // FIXME TODO FIXME FIXME TODO - rewrite the x values so they are lined up correctly
+        // http://stackoverflow.com/questions/2756575/drawing-text-to-canvas-with-font-face-does-not-work-at-the-first-time/7289880#7289880
+        // music notation is more complete for this font
+        ctx.font="84px FreeSerif"; // should be available via css font-face!
         // draw note
-        ctx.beginPath();
+        //ctx.beginPath();
+        //ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
+        //ctx.fill();
+        ctx.fillText("\ud834\udd5d", note.x, note.y);
         if(note.name.endsWith('s')) {
-            ctx.fillStyle = 'red';
+            ctx.font="30px FreeSerif"; // should be available via css font-face!
+            ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
         }
-        ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
-        ctx.fill();
-        ctx.fillStyle = 'black';
     }
 
     function renderCleff() {
