@@ -66,6 +66,29 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
+            function setupInputHandlers() {
+                // TODO move this into keyboard
+                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
+                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
+
+                if(!!midiInput) {
+                    let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
+                    let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
+                    let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
+
+                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns);
+                    playerReleases = Rx.Observable.merge(mouseKeyUps, midiKeyUps);
+                } else {
+                    playerPresses = mouseKeyDowns;
+                    playerReleases = mouseKeyUps;
+                }
+            }
+
+
+            function removeInputHandlers(mAccess) {
+            }
+
+
             function onMidiSuccess(mAccess) {
                 midi = window.MIDI = mAccess;
                 for (var entry of midi.inputs) {
@@ -87,31 +110,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         $('#use-instrument').prop('checked', 'checked');
                     }
                 }
-
-                // TODO move this into keyboard
-                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
-                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
-
-                if(!!midiInput) {
-                    let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
-                    let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
-                    let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
-
-                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns);
-                    playerReleases = Rx.Observable.merge(mouseKeyUps, midiKeyUps);
-                } else {
-                    playerPresses = mouseKeyDowns;
-                    playerReleases = mouseKeyUps;
-                }
-
-                // TODO create a user experience workflow...
-                gameSelect.trigger('change');
+                setupInputHandlers();
+                gameSelect.trigger('change'); // TODO this is tasteless, remove
             }
 
 
             function onMidiFailure(msg) {
                 console.log('Failed to get MIDI access - ' + msg);
             }
+
+
 
 
             function startPianoApp() {
@@ -126,12 +134,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameOver = $('#gameover');
                 gameOverMsg = $('#game-over-message');
 
-                $('#play-again').click(function() {
-                    gameOver.modal('hide');
-                    gameOverMsg.text('');
-                    gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
-                    // at the very least, just create a function for newGame and call that
-                });
+                gameOver.on("hidden.bs.modal", onPlayAgain);
 
                 gameSelect.on('change', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
@@ -150,7 +153,20 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
+            function onPlayAgain(ev) {
+                gameOver.modal('hide');
+                gameOverMsg.text('');
+                gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
+                // at the very least, just create a function for newGame and call that
+            }
+
+
             function displayEndScore (success) {
+                // remove game so that we can take over keypress handlers
+                if(!!game) {
+                    game.cleanup(); 
+                    delete game;
+                }
                 let best = parseInt(localStorage['best']) || 0;
                 let currentScore = parseInt(game.score) || 0;
                 msg = 'Score: ' + currentScore;
@@ -159,7 +175,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     msg += ' - BEST YET! :-D'
                 }
                 gameOverMsg.text(msg);
-                $('#gameover').modal('show');
+                gameOver.modal('show');
+                $('#play-again').focus();
             }
 
 
