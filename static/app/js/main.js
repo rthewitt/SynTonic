@@ -43,8 +43,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             var midi = null,
                 midiInput, // need a handle for event listener
                 playerPresses,
-                playerReleases;
-
+                playerReleases,
+                easyDismi$$; // temporary handler to continue with keypress
 
             function parseMidi( event ) {
                 // Uint8Array?
@@ -154,6 +154,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
 
             function onPlayAgain(ev) {
+                if(!!easyDismi$$) {
+                    easyDismi$$.dispose();
+                    easyDismi$$ = null;
+                }
                 gameOver.modal('hide');
                 gameOverMsg.text('');
                 gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
@@ -175,6 +179,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     msg += ' - BEST YET! :-D'
                 }
                 gameOverMsg.text(msg);
+                // allow middle c to close the dialog so user doesn't need to use laptop
+                easyDismi$$ = playerPresses.filter((key) => key.id === keyboard.MIDDLE_C).take(1).subscribe(()=> {
+                    gameOver.modal('hide');
+                });
                 gameOver.modal('show');
                 $('#play-again').focus();
             }
