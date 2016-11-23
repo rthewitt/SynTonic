@@ -26,11 +26,19 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
         ], function($, _, Rx, Backbone, Marionette, Mustache, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
 
+            // FIXME REMOVE
+            window.doRelay = function() { dispatcher.trigger('game::relay'); }
+
             var game = null;
             var ws = null;
 
             // FIXME remove this, or document blacklist in UI
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
+
+            var gameSelect, 
+                gameOver,
+                gameOverMessage,
+                showSettings;
 
             var midi = null,
                 midiInput, // need a handle for event listener
@@ -112,10 +120,18 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // so that we can pass instrument into the Game constructor once again
                 // (e.g., clearAllKeys and other UI functions)
                 MusicSheet.init(keyboard); // set up the Dom
-                Games.init(keyboard); // set up the Dom
 
                 gameSelect = $('#game-type');
                 showSettings = $('#show-settings');
+                gameOver = $('#gameover');
+                gameOverMsg = $('#game-over-message');
+
+                $('#play-again').click(function() {
+                    gameOver.modal('hide');
+                    gameOverMsg.text('');
+                    gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
+                    // at the very least, just create a function for newGame and call that
+                });
 
                 gameSelect.on('change', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
@@ -142,11 +158,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     localStorage['best'] = currentScore;
                     msg += ' - BEST YET! :-D'
                 }
-                alert(msg);
-                setTimeout(function() {
-                    gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
-                    // at the very least, just create a function for newGame and call that
-                }, 1000);
+                gameOverMsg.text(msg);
+                $('#gameover').modal('show');
             }
 
 
@@ -161,7 +174,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.FLOW:
                         // TODO move instrument midiInput into Keyboard!
                         game = new Games.Flow({ 
-                            instrument: keyboard,
+                            keyboard: keyboard,
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
                         });

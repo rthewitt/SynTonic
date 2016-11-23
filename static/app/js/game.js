@@ -6,8 +6,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
     var gameStop, 
         keyboard,
-        gameSelect, 
-        showSettings,
         scoreBoard, 
         progressBar;
 
@@ -61,6 +59,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
 
     function Game(opts) {
+        initialize(opts.keyboard);
 
         // Flow variation
         this.reward = 1;
@@ -87,17 +86,24 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
+        let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
-        // TODO understand if moving the do(updateUIForAttempt) above will still work...
+        // create and switch to new timer every time user reaches relay point!!
+        // secret here is that it will only emit once, but do side effect on every internal tick
+        var maxTicks = 2*gameTime; // only valid for 500ms!
+        var gameTimer = relay.map( 
+            () => Rx.Observable.timer(0, 500).take(maxTicks).do((elapsed) => 
+                    updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
+        ).switch().take(1).publish().refCount();
 
 
+        // TODO understand if moving the do(updateUIForAttempt) to attempts above will still work...
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
         let ender = Rx.Observable.merge(
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
-            // TODO move this interval outside, make it a map on game::relay, switch on resulting timer.
-            Rx.Observable.interval(1E3 * gameTime).skipUntil(attempts).take(1).do(() => console.log('GAME TIMED OUT...')),
+            gameTimer.do(() => console.log('GAME TIMED OUT...')),
             attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
             ).publish().refCount(); // make it hot
 
@@ -106,13 +112,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
             scoreBoard.text(''+score);
             self.score = score;
-        }) 
-
-        // update progress
-        Rx.Observable.timer(0, 500).takeUntil(ender).skipUntil(attempts).subscribe((elapsed) => {
-            let max = 2 * gameTime,
-                left = max - (elapsed+1); // +1 to end animation at zero
-            updateProgressBar(left > 0 ? left : left, max);
         });
 
 
@@ -130,7 +129,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         var pp$, pr$; // subscriptions
         pr$ = playerReleases.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::release', key));
         if(audibleMiss) {
-            //attempts.takeUntil(ender).subscribe((attempt) => {
             pp$ = attempts.subscribe((attempt) => {
                 key = attempt.success ? attempt.pressed : kb.keysById['0C'];
                 dispatcher.trigger('key::press', key);
@@ -144,6 +142,11 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         this.releases$ = pr$;
 
 
+        // trigger a relay attempt if we make it to 30!
+        attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
+            if(n % 30 === 0) dispatcher.trigger('game::relay');
+        });
+
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
@@ -151,7 +154,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             if(playQueue.length < 12) 
                 notegen.onNext(flowGenerate())
             // advance the keyboard UI
-            //debugger;
             activateKey(playQueue[0].key); 
         },
         (err) => console.log(err),
@@ -191,10 +193,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         this.releases$.dispose();
     }
 
-
-    Game.prototype.start = function() {
-    }
-
     // when the app / dom is ready...
     function initialize(instrument) {
         gameStop = $('#stop-game');
@@ -211,8 +209,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     }
 
     return {
-        Flow: Game,
-        init: initialize
+        Flow: Game
     }
 
 });

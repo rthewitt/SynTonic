@@ -3,6 +3,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
     const MAX_NOTE_X = 150;
     const TREBLE_BAR_HEIGHT = 25;
     const UNDERBAR = 177;
+    const CANVAS_WIDTH = 600;
     //  from keyboard:  ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
     //const NOTES_POS_H = [175, 175, 163, 163, 150, 138, 138, 125, 125, 113, 113, 100];
     const NOTES_POS_H = [184, 184, 172, 172, 157, 145, 145, 132, 132, 120, 120, 107];
@@ -77,12 +78,12 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         let ctx = treble.ctx,
             start = preRender ? 0 : 70;
 
-        ctx.clearRect(70, 40, 600, 150);
+        ctx.clearRect(70, 40, CANVAS_WIDTH, 150);
             ctx.beginPath();
         for(var x=2; x<=6; x++) {
             let pos = x*TREBLE_BAR_HEIGHT;
             ctx.moveTo(start,pos);
-            ctx.lineTo(600,pos);
+            ctx.lineTo(CANVAS_WIDTH,pos);
         }
         ctx.stroke();
         notes.map(drawNote);

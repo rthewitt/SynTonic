@@ -64,6 +64,25 @@
       </div>
     </div>
 
+    <div id="gameover" class="modal fade" tabindex="-1" role="dialog">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <h4 class="modal-title">Game Over!</h4><!-- make this dynamic based on performance -->
+          </div>
+          <div class="modal-body">
+              <div id="game-over-message"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-default exitgame" data-dismiss="modal">Back</button>
+            <button id="play-again" type="button" class="btn btn-primary">Again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
     <div id="scoreboard"></div>
     <div id="piano">
         <div id="pianoBody">
@@ -553,7 +572,7 @@
     </div>
     <!-- Preload our custom font! -->
     <div class="sheet-music" style="font-family: FreeSerif;">
-        <canvas id="treble-staff" width="600" height="190">
+        <canvas id="treble-staff" width="620" height="190">
         </canvas>
     </div>
     <div id="round-progress">
