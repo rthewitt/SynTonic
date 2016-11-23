@@ -13,6 +13,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
     var Note = MusicSheet.Note;
 
+    var setNoProgress = () => updateProgressBar(0, 1);
+    var setMaxProgress = () => updateProgressBar(1, 1);
 
     function updateProgressBar(cur, max) {
         let p = Math.round(100 * (cur / max));
@@ -86,13 +88,16 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
 
+        // TODO understand if moving the do(updateUIForAttempt) above will still work...
+
 
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
         let ender = Rx.Observable.merge(
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
-            Rx.Observable.interval(1E3 * gameTime).take(1).do(() => console.log('GAME TIMED OUT...')),
+            // TODO move this interval outside, make it a map on game::relay, switch on resulting timer.
+            Rx.Observable.interval(1E3 * gameTime).skipUntil(attempts).take(1).do(() => console.log('GAME TIMED OUT...')),
             attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
             ).publish().refCount(); // make it hot
 
@@ -104,7 +109,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         }) 
 
         // update progress
-        Rx.Observable.timer(0, 500).takeUntil(ender).subscribe((elapsed) => {
+        Rx.Observable.timer(0, 500).takeUntil(ender).skipUntil(attempts).subscribe((elapsed) => {
             let max = 2 * gameTime,
                 left = max - (elapsed+1); // +1 to end animation at zero
             updateProgressBar(left > 0 ? left : left, max);
@@ -155,7 +160,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             console.log('ENDING GAME');
             clearAllKeys();
             MusicSheet.renderStaff([]);
-            updateProgressBar(0,1);
+            setNoProgress();
             dispatcher.trigger('game::over');
         });
 
@@ -201,7 +206,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // remove UI functions from this file
         keyboard = instrument;
 
-        updateProgressBar(1,1);
+        setMaxProgress();
         MusicSheet.renderCleff();
     }
 
