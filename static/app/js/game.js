@@ -2,7 +2,6 @@
 // TODO ensure that evaluate / evaluateSimple is only running once, it logs multiple times...
 define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, MusicSheet, dispatcher, util) {
 
-    const STREAM_SPEED = -10; // -5 for "independent timing"
 
     var gameStop, 
         keyboard,
@@ -39,7 +38,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     }
 
 
-    function flowGenerate() {
+    function generateSimple() {
         let first = keyboard.keysById['3C'],
             last = keyboard.keysById['3B'],
             min = keyboard.keys.indexOf(first),
@@ -60,8 +59,12 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
     function Game(opts) {
         initialize(opts.keyboard);
+        let gt = util.gameTypes; 
 
         this.type = opts.type;
+        console.log('game is type '+gt.names[this.type]);
+
+        this.streamSpeed = this.type === gt.FLOW ? -10 : -5
 
         // Flow variation
         this.reward = 1;
@@ -93,11 +96,16 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         // create and switch to new timer every time user reaches relay point!!
         // secret here is that it will only emit once, but do side effect on every internal tick
-        var maxTicks = 2*gameTime; // only valid for 500ms!
-        var gameTimer = relay.map( 
-            () => Rx.Observable.timer(0, 500).take(maxTicks).do((elapsed) => 
-                    updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
-        ).switch().take(1).publish().refCount();
+        let maxTicks = 2*gameTime; // only valid for 500ms!
+        let gameTimer;
+
+        if(this.type !== gt.STAMINA) { // negation for code form
+            gameTimer = relay.map( 
+                () => Rx.Observable.timer(0, 500).take(maxTicks).do((elapsed) => 
+                        updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
+            ).switch().take(1).publish().refCount();
+        } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
+
 
 
         // TODO understand if moving the do(updateUIForAttempt) to attempts above will still work...
@@ -107,7 +115,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             gameTimer.do(() => console.log('GAME TIMED OUT...')),
-            attempts.do(updateUIForAttempt).filter((a) => !a.success) // player missed!
+            attempts.do(updateUIForAttempt).filter((a) => !a.success), // incorrect key! TODO add blink or extra delay?
+            Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
             ).publish().refCount(); // make it hot
 
 
@@ -118,8 +127,14 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         });
 
 
-        let noteStream = Rx.Observable.interval(34).takeUntil(ender).scan((v, tick) => { 
-            let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
+        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((v, tick) => { 
+            let isLeft = playQueue[0].x <= 100;
+            if(this.type === gt.STAMINA && isLeft) {
+                dispatcher.trigger('key::miss');
+                return;
+            }
+
+            let tempo = isLeft ? 0 : v || self.streamSpeed;
             playQueue.forEach((note) => {
                 note.x = note.x + tempo;
             });
@@ -131,7 +146,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             }).filter((n)=>n.y > 70);
 
             return tempo;
-        }, STREAM_SPEED).subscribe(() => MusicSheet.renderStaff(playQueue, false, floatyNotes));
+        }, 0).subscribe(() => MusicSheet.renderStaff(playQueue, false, floatyNotes));
 
 
         // TODO move this into settings somewhere
@@ -164,7 +179,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             // TODO think about immutability  benefits for stats, replays, etc 
             floatyNotes.push( playQueue.shift() ); 
             if(playQueue.length < 12) 
-                notegen.onNext(flowGenerate())
+                notegen.onNext(generateSimple())
             // advance the keyboard UI
             activateKey(playQueue[0].key); 
         },
@@ -190,8 +205,9 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         notegen.onNext(startNote);
         activateKey(startNote.key); 
         for(let z=0; z<11; z++) {
-            notegen.onNext(flowGenerate());
+            notegen.onNext(generateSimple());
         }
+        MusicSheet.renderStaff(playQueue);
         gameStop.show(); 
         scoreBoard.text('0');
     }
@@ -200,7 +216,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
-        dispatcher.trigger('game::cleanup');
+        //dispatcher.trigger('game::cleanup');
         this.presses$.dispose();
         this.releases$.dispose();
     }

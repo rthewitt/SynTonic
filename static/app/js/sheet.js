@@ -1,6 +1,6 @@
 define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher, util) {
 
-    const MAX_NOTE_X = 150;
+    const START_NOTE_X = 150;
     const TREBLE_BAR_HEIGHT = 25;
     const UNDERBAR = 177;
     const CANVAS_WIDTH = 600;
@@ -27,7 +27,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         this.id = id; 
         this.key = keyboard.keysById[id];
         this.name = this.key.note;
-        this.x = MAX_NOTE_X;
+        this.x = START_NOTE_X;
         this.y = NOTES_POS_H[n.indexOf(this.name)]
     }
 

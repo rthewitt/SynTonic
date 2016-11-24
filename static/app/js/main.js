@@ -199,6 +199,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 let mode = gt.names.indexOf(selected)
                 switch(mode) {
                     case gt.FLOW:
+                    case gt.STAMINA:
                         // TODO move instrument midiInput into Keyboard!
                         game = new Games.Flow({ 
                             type: mode,
