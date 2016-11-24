@@ -41,18 +41,19 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         let ctx = treble.ctx;
 
         // lines for special notes
-        if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ||
-                note.id === '3D' || note.id === '3Ds') {
-            ctx.beginPath();
-            ctx.moveTo(note.x-10, UNDERBAR);
-            ctx.lineTo(note.x+40, UNDERBAR);
-            ctx.stroke();
+        if(!style || style === 'active') {
+            if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ||
+                    note.id === '3D' || note.id === '3Ds') {
+                ctx.beginPath();
+                ctx.moveTo(note.x-10, UNDERBAR);
+                ctx.lineTo(note.x+40, UNDERBAR);
+                ctx.stroke();
+            }
         }
 
         ctx.font="84px FreeSerif"; // should be available via css font-face!
-        if(!!style && style === 'active')  {
+        if(!!style && style === 'active') {
             ctx.save();
-            console.log('ACTIVE DRAW');
             ctx.strokeStyle="black";
             ctx.fillStyle="#CCFF33";
             ctx.lineWidth=5;
@@ -65,12 +66,15 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
             }
             ctx.restore();
         } else { // normal note
+            ctx.save();
+            if(!!style && style === 'success') ctx.fillStyle="#46EC00"; 
             ctx.fillText("\ud834\udd5d", note.x, note.y);
             if(note.name.endsWith('s')) {
                 ctx.font="30px FreeSerif"; // should be available via css font-face!
                 ctx.strokeText("\u266f", note.x-15, note.y); // sharp symbol!
                 ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
             }
+            ctx.restore();
         }
 
         ctx.fillStyle = "black";
@@ -86,7 +90,8 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
     }
 
 
-    function renderStaff(notes, preRender) {
+    // preRender is a stage where we draw the cleff
+    function renderStaff(notes, preRender, successes) {
 
         let ctx = treble.ctx,
             start = preRender ? 0 : 70;
@@ -102,6 +107,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         notes.map((n, i) => { 
             drawNote(n, (i === 0 ? 'active' : undefined))
         });
+        if(!!successes) successes.map((n) => drawNote(n, 'success'));
     }
 
 

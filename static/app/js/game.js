@@ -81,8 +81,9 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // "generator" for notes
         var notegen = new Rx.Subject();
 
-        // state variable
+        // state variables
         var playQueue = [];
+        var floatyNotes = [];
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
@@ -117,11 +118,18 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         let noteStream = Rx.Observable.interval(16).takeUntil(ender).scan((v, tick) => { 
             let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
-            playQueue.map((note) => {
+            playQueue.forEach((note) => {
                 note.x = note.x + tempo;
             });
+
+            // IMPORTANT - this shall be the only reference to floatyNotes
+            floatyNotes = floatyNotes.map((note) => {
+                note.y -= 10; 
+                return note;
+            }).filter((n)=>n.y > 70);
+
             return tempo;
-        }, STREAM_SPEED).subscribe(() => MusicSheet.renderStaff(playQueue));
+        }, STREAM_SPEED).subscribe(() => MusicSheet.renderStaff(playQueue, false, floatyNotes));
 
 
         // TODO move this into settings somewhere
@@ -150,7 +158,9 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
-            playQueue.shift(); // TODO place this in another queue for happy graphics
+            // transfer note into different array
+            // TODO think about immutability  benefits for stats, replays, etc 
+            floatyNotes.push( playQueue.shift() ); 
             if(playQueue.length < 12) 
                 notegen.onNext(flowGenerate())
             // advance the keyboard UI
