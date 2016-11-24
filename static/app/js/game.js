@@ -4,6 +4,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
 
     var gameStop, 
+        gameStart,
         keyboard,
         scoreBoard, 
         progressBar;
@@ -208,7 +209,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             notegen.onNext(generateSimple());
         }
         MusicSheet.renderStaff(playQueue);
-        gameStop.show(); 
         scoreBoard.text('0');
     }
 
@@ -216,7 +216,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
-        //dispatcher.trigger('game::cleanup');
+        dispatcher.trigger('game::cleanup');
         this.presses$.dispose();
         this.releases$.dispose();
     }
@@ -224,9 +224,12 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     // when the app / dom is ready...
     function initialize(instrument) {
         gameStop = $('#stop-game');
+        gameStart = $('#start-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
 
+        gameStart.hide(); 
+        gameStop.show(); 
 
         // TODO see main.js for TODO
         // remove UI functions from this file

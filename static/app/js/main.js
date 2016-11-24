@@ -6,6 +6,7 @@ require.config({
         "underscore": "libs/underscore/underscore",
         "backbone": "libs/backbone/backbone",
         "mustache": "libs/mustache/mustache",
+        "mousetrap": "libs/mousetrap/mousetrap.min",
         "rxjs": "libs/rxjs/rx.all",
         "marionette": "libs/marionette/lib/backbone.marionette.min"
     },
@@ -19,11 +20,11 @@ require.config({
 });
 
 
-require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', './game', './sheet', 'keyboard',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'mousetrap', './game', './sheet', 'keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap'
-        ], function($, _, Rx, Backbone, Marionette, Mustache, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
 
             // FIXME REMOVE
@@ -36,6 +37,9 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
 
             var gameOver,
+                gameStop,
+                gameStart,
+                gameSelect,
                 gameOverMessage,
                 showSettings;
 
@@ -110,7 +114,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 }
                 setupInputHandlers();
-                dispatcher.trigger('game::select', 'FLOW');
+                gameStart.trigger('click');
             }
 
 
@@ -129,19 +133,46 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 MusicSheet.init(keyboard); // set up the Dom
 
                 showSettings = $('#show-settings');
+                gameSelect = $('#game-type');
+                gameStart = $('#start-game');
+                gameStop = $('#stop-game');
                 gameOver = $('#gameover');
                 gameOverMsg = $('#game-over-message');
 
-                gameOver.on("hidden.bs.modal", onPlayAgain);
+                $('#play-again').on('click', onPlayAgain);
+                var $gameOver = document.querySelector('#gameover');
+                MouseTrap($gameOver).bind('enter', (e, combo) => {
+                        gameOver.modal('hide');
+                        onPlayAgain();
+                });
+
+                gameOver.on('hidden.bs.modal', () => {
+                    if(!!easyDismi$$) {
+                        easyDismi$$.dispose();
+                        easyDismi$$ = null;
+                    }
+                });
+
+                function onGameStop() {
+                    gameSelect.closest('.btn-group').show();
+                    gameStop.hide();
+                    gameStart.show();
+                }
+
+                gameStop.on('click', onGameStop);
+                gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
 
                 $('#game-type-ul li').on('click', function(){
-                    dispatcher.trigger('game::select', $(this).text().toUpperCase());
+                    $('#mode-display').text($(this).text());
                 });
-                dispatcher.on('game::select', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
+
                 // requires a game to exist of course
-                dispatcher.on('game::over', displayEndScore);
+                dispatcher.on('game::over', (success) => {
+                    displayEndScore(success);
+                    onGameStop();
+                });
 
                 // for system exclusive messages, pass opts: { sysex: true }
                 navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
@@ -155,18 +186,12 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
 
             function onPlayAgain(ev) {
-                if(!!easyDismi$$) {
-                    easyDismi$$.dispose();
-                    easyDismi$$ = null;
-                }
-                gameOver.modal('hide');
                 gameOverMsg.text('');
-                dispatcher.trigger('game::select', util.gameTypes.names[game.type]);
-                // at the very least, just create a function for newGame and call that
+                onGameStart(util.gameTypes.names[game.type]);
             }
 
 
-            function displayEndScore (success) {
+            function displayEndScore(success) {
                 // remove game so that we can take over keypress handlers
                 if(!!game) {
                     game.cleanup(); 
@@ -183,13 +208,15 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // allow middle c to close the dialog so user doesn't need to use laptop
                 easyDismi$$ = playerPresses.filter((key) => key.id === keyboard.MIDDLE_C).take(1).subscribe(()=> {
                     gameOver.modal('hide');
+                    onPlayAgain();
                 });
                 gameOver.modal('show');
                 $('#play-again').focus();
             }
 
 
-            function onGameSelect(selected) { 
+            function onGameStart(selected) { 
+                // this should never happen
                 if(!!game) {
                     game.cleanup(); // avoid memory leaks
                     delete game;
@@ -212,7 +239,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.APT:
                         break;
                 }
-
+                gameSelect.closest('.btn-group').hide();
             }
 
             var app = new Marionette.Application();

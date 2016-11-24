@@ -96,7 +96,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         let ctx = treble.ctx,
             start = preRender ? 0 : 70;
 
-        ctx.clearRect(70, 40, CANVAS_WIDTH, 150);
+        ctx.clearRect(start, 40, CANVAS_WIDTH, 150);
             ctx.beginPath();
         for(var x=2; x<=6; x++) {
             let pos = x*TREBLE_BAR_HEIGHT;

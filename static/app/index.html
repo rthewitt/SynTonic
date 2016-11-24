@@ -32,9 +32,9 @@
 		<h1 id="serif" style="font-family: FreeSerif">SynTonic</h1>
 	</nav>
 	<nav class="right">
-        <div class="btn-group" role="group" aria-label="...">
+        <div class="btn-group" role="group" aria-label="..." style="display:none;">
             <div class="dropdown">
-              <button class="btn btn-primary dropdown-toggle" style="float: left;" type="button" id="game-type" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+              <button class="btn btn-info dropdown-toggle" style="float: left;" type="button" id="game-type" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
                 Mode
                 <span class="caret"></span>
               </button>
@@ -45,7 +45,9 @@
             </div>
         </div>
         <div class="btn-group" role="group" aria-label="...">
+            <button id="mode-display" type="button" class="btn btn-primary" disabled="disabled">Flow</button>
             <button id="stop-game" type="button" class="btn btn-danger">Stop Game</button>
+            <button id="start-game" type="button" class="btn btn-success" style="display:none;">Start Game</button>
             <button id="show-settings" type="button" class="btn btn-primary">Settings</button>
         </div>
 	</nav>
