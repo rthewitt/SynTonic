@@ -30,15 +30,24 @@
   <![endif]-->
 	<nav class="left">
 		<h1 id="serif" style="font-family: FreeSerif">SynTonic</h1>
-        <select id="game-type" style="display:none;">
-            <option selected="selected" value="0">Flow</option>
-            <option value="1">Melody</option>
-            <option value="2">Aptitude</option>
-        </select>
 	</nav>
 	<nav class="right">
-        <a id="stop-game" style="float: right; display: none">Stop Game</a><br />
-        <a id="show-settings" style="float: right;">Settings</a><br />
+        <div class="btn-group" role="group" aria-label="...">
+            <div class="dropdown">
+              <button class="btn btn-primary dropdown-toggle" style="float: left;" type="button" id="game-type" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">
+                Mode
+                <span class="caret"></span>
+              </button>
+              <ul id="game-type-ul" class="dropdown-menu" aria-labelledby="game-type">
+                <li><a href="#">Flow</a></li>
+                <li><a href="#">Stamina</a></li>
+              </ul>
+            </div>
+        </div>
+        <div class="btn-group" role="group" aria-label="...">
+            <button id="stop-game" type="button" class="btn btn-danger">Stop Game</button>
+            <button id="show-settings" type="button" class="btn btn-primary">Settings</button>
+        </div>
 	</nav>
 
     <div id="settings" class="modal fade" tabindex="-1" role="dialog">
@@ -57,8 +66,7 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            <button type="button" class="btn btn-primary">Save changes</button>
+            <button type="button" class="btn btn-primary" data-dismiss="modal">Save</button>
           </div>
         </div>
       </div>

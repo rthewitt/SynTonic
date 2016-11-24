@@ -61,6 +61,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     function Game(opts) {
         initialize(opts.keyboard);
 
+        this.type = opts.type;
+
         // Flow variation
         this.reward = 1;
         this.penalty = 0;

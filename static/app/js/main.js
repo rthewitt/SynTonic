@@ -35,8 +35,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             // FIXME remove this, or document blacklist in UI
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
 
-            var gameSelect, 
-                gameOver,
+            var gameOver,
                 gameOverMessage,
                 showSettings;
 
@@ -111,7 +110,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 }
                 setupInputHandlers();
-                gameSelect.trigger('change'); // TODO this is tasteless, remove
+                dispatcher.trigger('game::select', 'FLOW');
             }
 
 
@@ -129,14 +128,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // (e.g., clearAllKeys and other UI functions)
                 MusicSheet.init(keyboard); // set up the Dom
 
-                gameSelect = $('#game-type');
                 showSettings = $('#show-settings');
                 gameOver = $('#gameover');
                 gameOverMsg = $('#game-over-message');
 
                 gameOver.on("hidden.bs.modal", onPlayAgain);
 
-                gameSelect.on('change', onGameSelect);
+                $('#game-type-ul li').on('click', function(){
+                    dispatcher.trigger('game::select', $(this).text().toUpperCase());
+                });
+                dispatcher.on('game::select', onGameSelect);
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
                 // requires a game to exist of course
@@ -160,7 +161,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
                 gameOver.modal('hide');
                 gameOverMsg.text('');
-                gameSelect.trigger('change'); // FIXME this is a hack to avoid refresh for multiple games, place after score screen or key press!
+                dispatcher.trigger('game::select', util.gameTypes.names[game.type]);
                 // at the very least, just create a function for newGame and call that
             }
 
@@ -188,17 +189,19 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
 
-            function onGameSelect(ev) { 
+            function onGameSelect(selected) { 
                 if(!!game) {
                     game.cleanup(); // avoid memory leaks
                     delete game;
                 }
 
                 let gt = util.gameTypes;
-                switch(parseInt(this.value)) {
+                let mode = gt.names.indexOf(selected)
+                switch(mode) {
                     case gt.FLOW:
                         // TODO move instrument midiInput into Keyboard!
                         game = new Games.Flow({ 
+                            type: mode,
                             keyboard: keyboard,
                             playerPresses: playerPresses,
                             playerReleases: playerReleases

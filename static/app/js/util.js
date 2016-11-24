@@ -11,10 +11,11 @@ define(function() {
     }; 
 
     var gameTypes = {
-        FLOW: 0,
-        MELODY: 1,
-        APT: 2,
-        names: ['FLOW', 'MELODY', 'APT']
+        FLOW: 0, // accuracy, perhaps relay
+        STAMINA: 1, // independent timing
+        MELODY: 2,
+        APT: 3,
+        names: ['FLOW', 'STAMINA', 'MELODY', 'APT']
     };
 
     return {
