@@ -150,7 +150,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
-            playQueue.shift();
+            playQueue.shift(); // TODO place this in another queue for happy graphics
             if(playQueue.length < 12) 
                 notegen.onNext(flowGenerate())
             // advance the keyboard UI

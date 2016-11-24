@@ -37,7 +37,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
     //var sharp = new Image();
     //sharp.src = 'img/sharp.gif';
 
-    function drawNote(note) {
+    function drawNote(note, style) {
         let ctx = treble.ctx;
 
         // lines for special notes
@@ -49,19 +49,31 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
             ctx.stroke();
         }
 
-        // FIXME TODO FIXME FIXME TODO - rewrite the x values so they are lined up correctly
-        // http://stackoverflow.com/questions/2756575/drawing-text-to-canvas-with-font-face-does-not-work-at-the-first-time/7289880#7289880
-        // music notation is more complete for this font
         ctx.font="84px FreeSerif"; // should be available via css font-face!
-        // draw note
-        //ctx.beginPath();
-        //ctx.arc(note.x, note.y, 10, 0, 2*Math.PI);
-        //ctx.fill();
-        ctx.fillText("\ud834\udd5d", note.x, note.y);
-        if(note.name.endsWith('s')) {
-            ctx.font="30px FreeSerif"; // should be available via css font-face!
-            ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
+        if(!!style && style === 'active')  {
+            ctx.save();
+            console.log('ACTIVE DRAW');
+            ctx.strokeStyle="black";
+            ctx.fillStyle="#CCFF33";
+            ctx.lineWidth=5;
+            ctx.strokeText("\ud834\udd5d", note.x, note.y);
+            ctx.fillText("\ud834\udd5d", note.x, note.y);
+            if(note.name.endsWith('s')) {
+                ctx.font="30px FreeSerif"; // should be available via css font-face!
+                ctx.strokeText("\u266f", note.x-15, note.y); // sharp symbol!
+                ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
+            }
+            ctx.restore();
+        } else { // normal note
+            ctx.fillText("\ud834\udd5d", note.x, note.y);
+            if(note.name.endsWith('s')) {
+                ctx.font="30px FreeSerif"; // should be available via css font-face!
+                ctx.strokeText("\u266f", note.x-15, note.y); // sharp symbol!
+                ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
+            }
         }
+
+        ctx.fillStyle = "black";
     }
 
     function renderCleff() {
@@ -72,6 +84,7 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
         tc.src = 'img/treble-cleff.gif';
     }
+
 
     function renderStaff(notes, preRender) {
 
@@ -86,7 +99,9 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
             ctx.lineTo(CANVAS_WIDTH,pos);
         }
         ctx.stroke();
-        notes.map(drawNote);
+        notes.map((n, i) => { 
+            drawNote(n, (i === 0 ? 'active' : undefined))
+        });
     }
 
 
