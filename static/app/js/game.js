@@ -224,12 +224,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     // when the app / dom is ready...
     function initialize(instrument) {
         gameStop = $('#stop-game');
-        gameStart = $('#start-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
-
-        gameStart.hide(); 
-        gameStop.show(); 
 
         // TODO see main.js for TODO
         // remove UI functions from this file

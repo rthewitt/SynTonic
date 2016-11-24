@@ -211,6 +211,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameSelect.closest('.btn-group').show();
                 gameStop.hide();
                 gameStart.show();
+                showSettings.attr('disabled', false);
             }
 
 
@@ -220,6 +221,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     game.cleanup(); // avoid memory leaks
                     delete game;
                 }
+
+                gameStart.hide(); 
+                gameStop.show(); 
+                showSettings.attr('disabled', true);
 
                 let gt = util.gameTypes;
                 let mode = gt.names.indexOf(selected)
