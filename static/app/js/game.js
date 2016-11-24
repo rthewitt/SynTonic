@@ -67,7 +67,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         this.streamSpeed = this.type === gt.FLOW ? -10 : -5
 
-        // Flow variation
         this.reward = 1;
         this.penalty = 0;
 
@@ -236,7 +235,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     }
 
     return {
-        Flow: Game
+        Game: Game
     }
 
 });

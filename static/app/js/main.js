@@ -232,7 +232,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.FLOW:
                     case gt.STAMINA:
                         // TODO move instrument midiInput into Keyboard!
-                        game = new Games.Flow({ 
+                        game = new Games.Game({ 
                             type: mode,
                             keyboard: keyboard,
                             playerPresses: playerPresses,
