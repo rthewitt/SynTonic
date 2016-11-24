@@ -2,7 +2,7 @@
 // TODO ensure that evaluate / evaluateSimple is only running once, it logs multiple times...
 define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, MusicSheet, dispatcher, util) {
 
-    const STREAM_SPEED = -5;
+    const STREAM_SPEED = -10; // -5 for "independent timing"
 
     var gameStop, 
         keyboard,
@@ -116,7 +116,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         });
 
 
-        let noteStream = Rx.Observable.interval(16).takeUntil(ender).scan((v, tick) => { 
+        let noteStream = Rx.Observable.interval(34).takeUntil(ender).scan((v, tick) => { 
             let tempo = playQueue[0].x <= 100 ? 0 : v || STREAM_SPEED;
             playQueue.forEach((note) => {
                 note.x = note.x + tempo;
