@@ -122,11 +122,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 console.log('Failed to get MIDI access - ' + msg);
             }
 
-
-
-
+            
             function startPianoApp() {
-
                 // TODO move everything keyboard related into keyboard
                 // so that we can pass instrument into the Game constructor once again
                 // (e.g., clearAllKeys and other UI functions)
@@ -145,6 +142,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         gameOver.modal('hide');
                         onPlayAgain();
                 });
+                MouseTrap.bind('esc', () => gameStop.trigger('click'));
 
                 gameOver.on('hidden.bs.modal', () => {
                     if(!!easyDismi$$) {
@@ -152,12 +150,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         easyDismi$$ = null;
                     }
                 });
-
-                function onGameStop() {
-                    gameSelect.closest('.btn-group').show();
-                    gameStop.hide();
-                    gameStart.show();
-                }
 
                 gameStop.on('click', onGameStop);
                 gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
@@ -212,6 +204,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 });
                 gameOver.modal('show');
                 $('#play-again').focus();
+            }
+
+
+            function onGameStop() {
+                gameSelect.closest('.btn-group').show();
+                gameStop.hide();
+                gameStart.show();
             }
 
 
