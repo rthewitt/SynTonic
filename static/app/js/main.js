@@ -91,13 +91,15 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             function removeInputHandlers(mAccess) {
             }
 
+            const hardcodedInputs = ['D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67', '-11152290'];
+            const hardcodedOutputs = ['37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A', '1380637477'];
 
             function onMidiSuccess(mAccess) {
                 midi = window.MIDI = mAccess;
                 for (var entry of midi.inputs) {
                     var input = entry[1];
                     console.log('found midi input ' + input.name + ' ::: ' + input.id);
-                    if(input.id === 'D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67') {
+                    if(hardcodedInputs.indexOf(input.id) !== -1) {
                         console.log('TODO create a dropdown select for input/output');
                         midiInput = input;
                         $('#is-connected').prop('checked', 'checked');
@@ -106,7 +108,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 for (var entry of midi.outputs) {
                     var output = entry[1];
                     console.log('OUTPUT ' + output.name + ' ::: ' + output.id);
-                    if(output.id === '37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A') {
+                    if(hardcodedOutputs.indexOf(output.id) !== -1) {
                         output.open();
                         keyboard.output = true;
                         keyboard.midiOut = output;

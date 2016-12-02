@@ -52,10 +52,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     }
 
 
-    function updateUIForAttempt(attempt) {
-        if(attempt.success) keyboard.successKey(attempt.pressed);
-        else keyboard.failKey(attempt.pressed);
-    }
 
 
     function Game(opts) {
@@ -89,6 +85,15 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // state variables
         var playQueue = [];
         var floatyNotes = [];
+        
+        // I had to move this in here in order to modify success immediately
+        // revisit this decision.
+        function updateUIForAttempt(attempt) {
+            if(attempt.success) {
+                playQueue[0].status = 'success';
+                keyboard.successKey(attempt.pressed);
+            } else keyboard.failKey(attempt.pressed);
+        }
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
@@ -105,7 +110,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
                         updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
             ).switch().take(1).publish().refCount();
         } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
-
 
 
         // TODO understand if moving the do(updateUIForAttempt) to attempts above will still work...
