@@ -1,4 +1,4 @@
-define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher, util) {
+define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, Vex, dispatcher, util) {
 
     const START_NOTE_X = 120; // multiple of both stream speeds means "cutoff" bar graphic looks correct
     const TREBLE_BAR_HEIGHT = 25;
@@ -12,6 +12,9 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         'failure': '#FF3357',
         'success': '#46EC00'
     }
+
+    // vex
+    var renderer;
 
     var treble = {
         canvas: undefined,
@@ -83,17 +86,17 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
         ctx.fillStyle = "black";
     }
 
-    function renderCleff() {
+    function renderClef() {
         renderStaff([], true) // just for background
-        // treble-cleff
+        // treble-clef
         let ctx = treble.ctx;
         let tc = new Image(); 
         tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
-        tc.src = 'img/treble-cleff.gif';
+        tc.src = 'img/treble-clef.gif';
     }
 
 
-    // preRender is a stage where we draw the cleff
+    // preRender is a stage where we draw the clef
     function renderStaff(notes, preRender, successes) {
 
         let ctx = treble.ctx,
@@ -128,15 +131,50 @@ define(['jquery', 'rxjs', './dispatcher', './util'], function($, Rx, dispatcher,
     }
 
 
+    function renderVex(num) {
+        let VF = Vex.Flow;
+        //console.log('should render vex score');
+        renderer.resize(620, 190);
+        let context = renderer.getContext();
+        context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
+
+        let stave = new VF.Stave(10, 40, 600);
+        stave.addClef('treble'); //.addTimeSignature('4/4');
+
+        // key signature test
+        keySig = new VF.KeySignature('A');
+        keySig.addToStave(stave);
+
+        stave.setContext(context).draw();
+        stave.setNoteStartX(num);
+
+        let vexNotes = [
+            new VF.StaveNote({ clef: 'treble', keys: ['c/4'], duration: 'h', auto_stem: true }),
+            new VF.StaveNote({ clef: 'treble', keys: ['e/4'], duration: 'q', auto_stem: true }),
+            new VF.StaveNote({ clef: 'treble', keys: ['g/4'], duration: 'q', auto_stem: true }),
+            new VF.StaveNote({ clef: 'treble', keys: ['c/4'], duration: 'w', auto_stem: true })
+        ];
+
+        let voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+        voice.setStrict(false); // remove tick counting, we aren't using measures
+        voice.addTickables(vexNotes);
+        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 400); // justify to 400 pixels
+        voice.draw(context, stave);
+    }
+
     return {
         init: function(instrument) { 
+                  renderer = new Vex.Flow.Renderer($('#vex-canvas')[0], 
+                          Vex.Flow.Renderer.Backends.CANVAS);
                   treble.canvas = $('#treble-staff')[0];
                   treble.ctx = treble.canvas.getContext('2d');
                   keyboard = instrument; 
               },
         Note: Note,
-        renderCleff: renderCleff,
-        renderStaff: renderStaff
+        renderClef: renderClef,
+        renderStaff: renderStaff,
+        renderVex: renderVex
     }
+
 
 });

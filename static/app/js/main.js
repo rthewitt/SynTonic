@@ -5,6 +5,7 @@ require.config({
         "bootstrap": "libs/bootstrap-dist/bootstrap.min",
         "underscore": "libs/underscore/underscore",
         "backbone": "libs/backbone/backbone",
+        "vexflow": "libs/vexflow/vexflow-min",
         "mustache": "libs/mustache/mustache",
         "mousetrap": "libs/mousetrap/mousetrap.min",
         "rxjs": "libs/rxjs/rx.all",

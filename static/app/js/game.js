@@ -213,6 +213,14 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         }
         MusicSheet.renderStaff(playQueue);
         scoreBoard.text('0');
+
+
+        var num = 400;
+        MusicSheet.renderVex(num);
+        setInterval(function() {
+            num = num - 2;
+            MusicSheet.renderVex(num);
+        }, 32);
     }
 
     Game.prototype.evaluate = evaluateSimple;
@@ -235,7 +243,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         keyboard = instrument;
 
         setMaxProgress();
-        MusicSheet.renderCleff();
+        MusicSheet.renderClef();
     }
 
     return {
