@@ -20,14 +20,15 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
      // has pointer to relevant key
      // TODO replace entirely with StaveNote, use global position, keep a context
     function Note(id) {
+        this.status = null;
         this.key = keyboard.keysById[id];
         // TODO stop cheating, this is dishonest progress
-        this.vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true }),
-        this.x = START_NOTE_X;
+        this.vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true })
     }
 
 
-    function renderVex(notes) {
+    function renderVex(notes, pos) {
+        if(typeof pos === 'undefined') pos = START_NOTE_X;
         // It seems like adding a set number makes things somewhat smoother - and the more we have the smoother
         // if we lengthen the formatted width, we get the same skip
         // WHY? is it because we briefly render without adding another note? Is it state mutation from shifting? 
@@ -45,7 +46,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         keySig.addToStave(stave);
 
         stave.setContext(context).draw();
-        stave.setNoteStartX(notes[0].x); // TODO make this the global x position
+        stave.setNoteStartX(pos);
 
         // TODO change note names, separate octave from id or reverse order truncate zero-pad
         // FIXME note that octave id is not zero based in vexflow
@@ -66,6 +67,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
                   keyboard = instrument; 
               },
         Note: Note,
+        startNoteX: START_NOTE_X,
         renderVex: renderVex
     }
 

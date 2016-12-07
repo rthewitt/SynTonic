@@ -52,6 +52,11 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     }
 
 
+    function updateUIForAttempt(attempt) {
+        if(attempt.success) {
+            keyboard.successKey(attempt.pressed);
+        } else keyboard.failKey(attempt.pressed);
+    }
 
 
     function Game(opts) {
@@ -86,15 +91,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         var playQueue = [];
         var floatyNotes = [];
         
-        // I had to move this in here in order to modify success immediately
-        // revisit this decision.
-        function updateUIForAttempt(attempt) {
-            if(attempt.success) {
-                playQueue[0].status = 'success';
-                keyboard.successKey(attempt.pressed);
-            } else keyboard.failKey(attempt.pressed);
-        }
-
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0].key, pressed: x })).map(evaluate);
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
@@ -131,22 +127,22 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         });
 
 
-        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((v, tick) => { 
-            let isLeft = playQueue[0].x <= 100;
-            if(this.type === gt.STAMINA && isLeft) {
-                dispatcher.trigger('key::miss');
-                return;
+        // TODO we are using state change from moveForward. There is jiggle / twitch
+        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((pos, tick) => { 
+            let tempo = self.streamSpeed;
+
+            if(playQueue[0].status === 'success') {
+                floatyNotes.push( playQueue.shift() ); 
+                console.log('abs: ' +playQueue[0].vexNote.getAbsoluteX() + '\npos: '+pos);
+                return playQueue[0].vexNote.getAbsoluteX() + tempo;
             }
 
-            let tempo = isLeft ? 0 : v || self.streamSpeed;
-
-            // TODO make this that global position
-            playQueue[0].x = playQueue[0].x + tempo;
-
-            return tempo;
-        }, 0).subscribe(() => {
-            MusicSheet.renderVex(playQueue);
-        });
+            if(playQueue[0].vexNote.getAbsoluteX() <= 100) {
+                if(this.type === gt.STAMINA) dispatcher.trigger('key::miss');
+                tempo = 0;
+            } 
+            return pos + tempo;
+        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderVex(playQueue, p) );
 
 
         // TODO move this into settings somewhere
@@ -169,16 +165,13 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         // trigger a relay attempt if we make it to 30!
         attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
+            playQueue[0].status = 'success';
             if(n % 30 === 0) dispatcher.trigger('game::relay');
         });
 
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
-            // transfer note into different array
-            // TODO think about immutability  benefits for stats, replays, etc 
-            floatyNotes.push( playQueue.shift() ); 
-            playQueue[0].x = playQueue[0].vexNote.getAbsoluteX();
             if(playQueue.length < 12) 
                 notegen.onNext(generateSimple())
             // advance the keyboard UI
