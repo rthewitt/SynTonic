@@ -96,7 +96,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         }
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: playQueue[0], pressed: x })).map(evaluate);
+        let attempts = playerPresses.map((x) => ({ target: playQueue[0].key, pressed: x })).map(evaluate);
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
         // create and switch to new timer every time user reaches relay point!!
@@ -139,18 +139,14 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             }
 
             let tempo = isLeft ? 0 : v || self.streamSpeed;
-            playQueue.forEach((note) => {
-                note.x = note.x + tempo;
-            });
 
-            // IMPORTANT - this shall be the only reference to floatyNotes
-            floatyNotes = floatyNotes.map((note) => {
-                note.y -= 10; 
-                return note;
-            }).filter((n)=>n.y > 70);
+            // TODO make this that global position
+            playQueue[0].x = playQueue[0].x + tempo;
 
             return tempo;
-        }, 0).subscribe(() => MusicSheet.renderStaff(playQueue, false, floatyNotes));
+        }, 0).subscribe(() => {
+            MusicSheet.renderVex(playQueue);
+        });
 
 
         // TODO move this into settings somewhere
@@ -182,6 +178,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
             // transfer note into different array
             // TODO think about immutability  benefits for stats, replays, etc 
             floatyNotes.push( playQueue.shift() ); 
+            playQueue[0].x = playQueue[0].vexNote.getAbsoluteX();
             if(playQueue.length < 12) 
                 notegen.onNext(generateSimple())
             // advance the keyboard UI
@@ -192,7 +189,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         () => {
             console.log('ENDING GAME');
             clearAllKeys();
-            MusicSheet.renderStaff([]);
+            //MusicSheet.renderVex([]); // this breaks with vex
             setNoProgress();
             dispatcher.trigger('game::over');
         });
@@ -200,6 +197,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         let gamePlay = notegen.takeUntil(ender).subscribe((note) => { 
             // if there are notes already, we want to offset them
+            // TODO remove this ASAP
             if(playQueue.length > 0) 
                 note.x = playQueue[playQueue.length-1].x + 80; // place at end of staff
             playQueue.push(note); // always push!
@@ -211,16 +209,8 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         for(let z=0; z<11; z++) {
             notegen.onNext(generateSimple());
         }
-        MusicSheet.renderStaff(playQueue);
+        MusicSheet.renderVex(playQueue);
         scoreBoard.text('0');
-
-
-        var num = 400;
-        MusicSheet.renderVex(num);
-        setInterval(function() {
-            num = num - 2;
-            MusicSheet.renderVex(num);
-        }, 32);
     }
 
     Game.prototype.evaluate = evaluateSimple;
@@ -243,7 +233,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         keyboard = instrument;
 
         setMaxProgress();
-        MusicSheet.renderClef();
     }
 
     return {

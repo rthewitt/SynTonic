@@ -16,129 +16,28 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     // vex
     var renderer;
 
-    var treble = {
-        canvas: undefined,
-        ctx: undefined,
-    };
-
-    var bass = {
-        canvas: undefined,
-        ctx: undefined,
-    };
-
-
      // Note: object to be rendered on staff
      // has pointer to relevant key
+     // TODO replace entirely with StaveNote, use global position, keep a context
     function Note(id) {
-        let n = keyboard.noteNames;
-
-        this.id = id; 
         this.key = keyboard.keysById[id];
-        this.name = this.key.note;
+        // TODO stop cheating, this is dishonest progress
+        this.vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true }),
         this.x = START_NOTE_X;
-        this.y = NOTES_POS_H[n.indexOf(this.name)]
     }
 
 
-
-    // Consider making this draw many notes at once, to avoid unecessary context save/restore
-    function drawNote(note, style) {
-        let ctx = treble.ctx;
-
-        // lines for special notes
-        if(!style || style === 'active') {
-            if(note.id === keyboard.MIDDLE_C || note.id === keyboard.MIDDLE_C+'s' ||
-                    note.id === '3D' || note.id === '3Ds') {
-                ctx.beginPath();
-                ctx.moveTo(note.x-10, UNDERBAR);
-                ctx.lineTo(note.x+40, UNDERBAR);
-                ctx.stroke();
-            }
-        }
-
-        ctx.font="84px FreeSerif"; // should be available via css font-face!
-        if(!!style && (style === 'active' || style === 'success')) {
-            ctx.save();
-            ctx.strokeStyle="black";
-            ctx.fillStyle=NOTE_COLORS[style];
-            ctx.lineWidth=5;
-            ctx.strokeText("\ud834\udd5d", note.x, note.y);
-            ctx.fillText("\ud834\udd5d", note.x, note.y);
-            if(note.name.endsWith('s')) {
-                ctx.font="30px FreeSerif"; // should be available via css font-face!
-                ctx.strokeText("\u266f", note.x-15, note.y); // sharp symbol!
-                ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
-            }
-            ctx.restore();
-        } else { // normal note
-            ctx.save();
-            if(!!style) ctx.fillStyle = NOTE_COLORS[style];
-            //if(!!style && style === 'success') ctx.fillStyle="#46EC00"; 
-            ctx.fillText("\ud834\udd5d", note.x, note.y);
-            if(note.name.endsWith('s')) {
-                ctx.font="30px FreeSerif"; // should be available via css font-face!
-                ctx.strokeText("\u266f", note.x-15, note.y); // sharp symbol!
-                ctx.fillText("\u266f", note.x-15, note.y); // sharp symbol!
-            }
-            ctx.restore();
-        }
-
-        ctx.fillStyle = "black";
-    }
-
-    function renderClef() {
-        renderStaff([], true) // just for background
-        // treble-clef
-        let ctx = treble.ctx;
-        let tc = new Image(); 
-        tc.onload = () => ctx.drawImage(tc, 0, 8, 75, 190);
-        tc.src = 'img/treble-clef.gif';
-    }
-
-
-    // preRender is a stage where we draw the clef
-    function renderStaff(notes, preRender, successes) {
-
-        let ctx = treble.ctx,
-            start = preRender ? 0 : 70;
-
-        ctx.clearRect(start, 40, CANVAS_WIDTH, 150);
-            ctx.beginPath();
-
-        if(!preRender) {
-            ctx.save();
-            //ctx.fillStyle = '#FF3357';
-            //ctx.globalAlpha = 0.4;
-            //ctx.fillRect(80,40,22,150);
-            ctx.beginPath();
-            ctx.moveTo(100, 50);
-            ctx.lineTo(100, 150);
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        for(var x=2; x<=6; x++) {
-            let pos = x*TREBLE_BAR_HEIGHT;
-            ctx.moveTo(start,pos);
-            ctx.lineTo(CANVAS_WIDTH,pos);
-        }
-        ctx.stroke();
-        notes.map((n, i) => { 
-            let style = n.status || ( i === 0 ? 'active' : undefined );
-            drawNote(n, style);
-        });
-        if(!!successes) successes.map((n) => drawNote(n, 'success'));
-    }
-
-
-    function renderVex(num) {
+    function renderVex(notes) {
+        // It seems like adding a set number makes things somewhat smoother - and the more we have the smoother
+        // if we lengthen the formatted width, we get the same skip
+        // WHY? is it because we briefly render without adding another note? Is it state mutation from shifting? 
+        notes = notes.slice(0, 6);
         let VF = Vex.Flow;
-        //console.log('should render vex score');
-        renderer.resize(620, 190);
+        renderer.resize(820, 200);
         let context = renderer.getContext();
         context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
 
-        let stave = new VF.Stave(10, 40, 600);
+        let stave = new VF.Stave(10, 40, 800);
         stave.addClef('treble'); //.addTimeSignature('4/4');
 
         // key signature test
@@ -146,19 +45,17 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         keySig.addToStave(stave);
 
         stave.setContext(context).draw();
-        stave.setNoteStartX(num);
+        stave.setNoteStartX(notes[0].x); // TODO make this the global x position
 
-        let vexNotes = [
-            new VF.StaveNote({ clef: 'treble', keys: ['c/4'], duration: 'h', auto_stem: true }),
-            new VF.StaveNote({ clef: 'treble', keys: ['e/4'], duration: 'q', auto_stem: true }),
-            new VF.StaveNote({ clef: 'treble', keys: ['g/4'], duration: 'q', auto_stem: true }),
-            new VF.StaveNote({ clef: 'treble', keys: ['c/4'], duration: 'w', auto_stem: true })
-        ];
+        // TODO change note names, separate octave from id or reverse order truncate zero-pad
+        // FIXME note that octave id is not zero based in vexflow
+        let vexNotes = notes.map( n => n.vexNote );
 
         let voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         voice.setStrict(false); // remove tick counting, we aren't using measures
         voice.addTickables(vexNotes);
-        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 400); // justify to 400 pixels
+
+        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 800); // justify to 400 pixels
         voice.draw(context, stave);
     }
 
@@ -166,13 +63,9 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         init: function(instrument) { 
                   renderer = new Vex.Flow.Renderer($('#vex-canvas')[0], 
                           Vex.Flow.Renderer.Backends.CANVAS);
-                  treble.canvas = $('#treble-staff')[0];
-                  treble.ctx = treble.canvas.getContext('2d');
                   keyboard = instrument; 
               },
         Note: Note,
-        renderClef: renderClef,
-        renderStaff: renderStaff,
         renderVex: renderVex
     }
 
