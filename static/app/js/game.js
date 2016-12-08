@@ -67,7 +67,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         this.type = opts.type;
         console.log('game is type '+gt.names[this.type]);
 
-        this.streamSpeed = this.type === gt.FLOW ? -10 : -5
+        this.streamSpeed = this.type === gt.FLOW ? -10 : -7;
 
         this.reward = 1;
         this.penalty = 0;
@@ -89,7 +89,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         var notegen = new Rx.Subject();
 
         // state variables
-        var playQueue = [];
+        var playQueue = window.playQueue = [];
         var floatyNotes = [];
         
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
@@ -134,8 +134,9 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
             if(playQueue[0].status === 'success') {
                 floatyNotes.push( playQueue.shift() ); 
-                console.log('abs: ' +playQueue[0].vexNote.getAbsoluteX() + '\npos: '+pos);
-                return playQueue[0].vexNote.getAbsoluteX() + tempo;
+                //console.log('abs: ' +playQueue[0].vexNote.getAbsoluteX() + '\npos: '+pos);
+                // new start position needs to take into account accidentals if there is one (left_modPx)
+                return playQueue[0].vexNote.getAbsoluteX() + tempo - (playQueue[0].vexNote.width + playQueue[0].vexNote.left_modPx); 
             }
 
             if(playQueue[0].vexNote.getAbsoluteX() <= 100) {
@@ -189,13 +190,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         });
 
 
-        let gamePlay = notegen.takeUntil(ender).subscribe((note) => { 
-            // if there are notes already, we want to offset them
-            // TODO remove this ASAP
-            if(playQueue.length > 0) 
-                note.x = playQueue[playQueue.length-1].x + 80; // place at end of staff
-            playQueue.push(note); // always push!
-        });
+        let gamePlay = notegen.takeUntil(ender).subscribe( n => playQueue.push(n) );
 
         let startNote = new Note(kb.MIDDLE_C);
         notegen.onNext(startNote);

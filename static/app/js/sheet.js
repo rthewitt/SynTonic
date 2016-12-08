@@ -27,7 +27,6 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true });
         var self = this;
         this.vexNote.keys.forEach( (n,i) => {
-            console.log('n='+n);
             if(n.indexOf('#') !== -1) {
                 self.vexNote.addAccidental(i, new VF.Accidental("#"));
             }
@@ -64,7 +63,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         voice.setStrict(false); // remove tick counting, we aren't using measures
         voice.addTickables(vexNotes);
 
-        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 800); // justify to 400 pixels
+        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 800);
         voice.draw(context, stave);
     }
 
