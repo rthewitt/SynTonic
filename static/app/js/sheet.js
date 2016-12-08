@@ -20,10 +20,18 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
      // has pointer to relevant key
      // TODO replace entirely with StaveNote, use global position, keep a context
     function Note(id) {
+        let VF = Vex.Flow;
         this.status = null;
         this.key = keyboard.keysById[id];
         // TODO stop cheating, this is dishonest progress
-        this.vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true })
+        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true });
+        var self = this;
+        this.vexNote.keys.forEach( (n,i) => {
+            console.log('n='+n);
+            if(n.indexOf('#') !== -1) {
+                self.vexNote.addAccidental(i, new VF.Accidental("#"));
+            }
+        });
     }
 
 
@@ -42,7 +50,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         stave.addClef('treble'); //.addTimeSignature('4/4');
 
         // key signature test
-        keySig = new VF.KeySignature('A');
+        keySig = new VF.KeySignature($('#keysig').val());
         keySig.addToStave(stave);
 
         stave.setContext(context).draw();

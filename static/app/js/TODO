@@ -1,0 +1,88 @@
+perhaps using this table...
+
+Flow.keyProperties.note_values = {
+  'C': { index: 0, int_val: 0, accidental: null },
+  'CN': { index: 0, int_val: 0, accidental: 'n' },
+  'C#': { index: 0, int_val: 1, accidental: '#' },
+  'C##': { index: 0, int_val: 2, accidental: '##' },
+  'CB': { index: 0, int_val: -1, accidental: 'b' },
+  'CBB': { index: 0, int_val: -2, accidental: 'bb' },
+
+I can select randomly from it so that I have the full range of notes, and then generalize my accidental addition code in Note constructor to use the specified accidental.
+What does the int value represent?
+
+
+change div id to match vexflow ids?
+change tone-<div-id>
+change key id in keyboard to match html
+
+
+*** look for note_values
+*** look for use of table below (keySpecs)
+
+Flow.keySignature.keySpecs = {
+  'C': { acc: null, num: 0 },
+  'Am': { acc: null, num: 0 },
+  'F': { acc: 'b', num: 1 },
+
+
+ok, so I can get the accidental list and line numbers if necessary but that doesn't help, what I need is a list of notes in a key.
+From the circle of fifths, it looks like it's always A-G starting from the given letter. We will use the accidental in the constructor of vexNote, but NOT in the notation (no addAccidental).
+However we must find a list of "affected" keys.  These tables may still work...
+
+I may be able to use this, along with array indices and index base shift from 0.5 to 1
+like noteNames array, iterate over circularly, using the pattern below - but I cannot guarantee this.
+
+Flow.keySignature.accidentalList = (acc) => {
+  const patterns = {
+    'b': [2, 0.5, 2.5, 1, 3, 1.5, 3.5],
+    '#': [0, 1.5, -0.5, 1, 2.5, 0.5, 2],
+  };
+
+  return patterns[acc];
+};
+
+
+pattern is graphical from the top line.  For instance, A (major) 
+  'A': { acc: '#', num: 3 }
+uses the pattern like so:
+'#': [ 0, 1.5, -0.5, ... ]
+which correspond as top line, 3 semitones down from top line, one semitown up from top line.  This corresponds to: F, C, G
+the challenge here is to map from pattern to line.  The best way I suppose is to convert patterns like so:
+
+    // NOTICE that these correspond to the circle of fifths, C-Major clockwise, counter-clockwise
+    '#': ['F', 'C', 'G', 'D', 'A', 'E', 'B'],
+    'b': ['B', 'E', 'A', 'D', 'G', 'C', 'F'],
+
+
+
+ITERATE CIRCULAR:
+
+var notes = [ 'a', 'b', 'c', 'd', 'e', 'f', 'g' ];
+
+function loop(start) { 
+    var res=[]; 
+    var idx=start; 
+    for(i=0; i < notes.length; i++) { 
+        if(idx == notes.length) idx = 0; 
+        res.push(notes[idx++]);
+    } 
+    return res; 
+}
+
+> loop(0)
+[ 'a', 'b', 'c', 'd', 'e', 'f', 'g' ]
+> loop(1)
+[ 'b', 'c', 'd', 'e', 'f', 'g', 'a' ]
+> loop(2)
+[ 'c', 'd', 'e', 'f', 'g', 'a', 'b' ]
+> loop(3)
+[ 'd', 'e', 'f', 'g', 'a', 'b', 'c' ]
+> loop(4)
+[ 'e', 'f', 'g', 'a', 'b', 'c', 'd' ]
+> loop(5)
+[ 'f', 'g', 'a', 'b', 'c', 'd', 'e' ]
+> loop(6)
+[ 'g', 'a', 'b', 'c', 'd', 'e', 'f' ]
+> loop(7)
+[ 'a', 'b', 'c', 'd', 'e', 'f', 'g' ]

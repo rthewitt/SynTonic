@@ -21,11 +21,11 @@ require.config({
 });
 
 
-require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'mousetrap', './game', './sheet', 'keyboard',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap'
-        ], function($, _, Rx, Backbone, Marionette, Mustache, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
 
             // FIXME REMOVE
@@ -161,6 +161,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     $('#mode-display').text($(this).text());
                 });
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
+
+                // populate the available keys
+                
+                let keySig = $('#keysig');
+                let keyHtml = '';
+                for(var ks in Vex.Flow.keySignature.keySpecs) {
+                    keyHtml += '<option value="'+ks+'">'+ks+'</option>';
+                }
+                keySig.html(keyHtml);
+                //keySig.on('change', ev => console.log(ev))
 
 
                 // requires a game to exist of course

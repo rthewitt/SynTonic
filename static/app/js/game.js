@@ -6,6 +6,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
     var gameStop, 
         gameStart,
         keyboard,
+        keySig,
         scoreBoard, 
         progressBar;
 
@@ -220,6 +221,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         gameStop = $('#stop-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
+        keySig = $('keysig');
 
         // TODO see main.js for TODO
         // remove UI functions from this file
