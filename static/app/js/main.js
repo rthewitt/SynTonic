@@ -42,7 +42,9 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameStart,
                 gameSelect,
                 gameOverMessage,
-                showSettings;
+                // settings
+                showSettings,
+                keySig;
 
             var midi = null,
                 midiInput, // need a handle for event listener
@@ -164,12 +166,14 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // populate the available keys
                 
-                let keySig = $('#keysig');
-                let keyHtml = '';
+                keySig = $('#keysig');
+                let keyHtml = keySig.html();
                 for(var ks in Vex.Flow.keySignature.keySpecs) {
                     keyHtml += '<option value="'+ks+'">'+ks+'</option>';
                 }
                 keySig.html(keyHtml);
+                // TODO use select keysig from UI, and place click handler there to update select & graphics in place
+                // so that user does not have to choose based on previous knowledge
                 //keySig.on('change', ev => console.log(ev))
 
 
@@ -240,7 +244,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 showSettings.attr('disabled', true);
 
                 let gt = util.gameTypes;
-                let mode = gt.names.indexOf(selected)
+                let mode = gt.names.indexOf(selected);
+                let chosenKey = keySig.val();
                 switch(mode) {
                     case gt.FLOW:
                     case gt.STAMINA:
@@ -248,6 +253,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         game = new Games.Game({ 
                             type: mode,
                             keyboard: keyboard,
+                            key: chosenKey === 'none' ? null : chosenKey,
+                            keyHints: true,
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
                         });

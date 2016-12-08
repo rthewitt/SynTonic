@@ -1,3 +1,17 @@
+add a default option to select (no key)
+pass key to Game ( opts )
+      // TODO change this so that we get flats anyway, maybe using vex table and removing bb, ##, etc?
+this.key = !!opts.key ? opts.key : null;
+this.explicit = opts.keyHints; // boolean
+if this.key value do not add key signature and select from all notes (keyboard.keys)
+else select from ['A','B','C','D','E','F'] and apply key via [num] algorithm
+
+
+
+
+
+
+
 perhaps using this table...
 
 Flow.keyProperties.note_values = {

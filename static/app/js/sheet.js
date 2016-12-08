@@ -11,30 +11,13 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         'active': '#CCFF33',
         'failure': '#FF3357',
         'success': '#46EC00'
-    }
+    };
 
     // vex
     var renderer;
 
-     // Note: object to be rendered on staff
-     // has pointer to relevant key
-     // TODO replace entirely with StaveNote, use global position, keep a context
-    function Note(id) {
-        let VF = Vex.Flow;
-        this.status = null;
-        this.key = keyboard.keysById[id];
-        // TODO stop cheating, this is dishonest progress
-        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [this.key.note.replace('s', '#')+'/4'], duration: 'h', auto_stem: true });
-        var self = this;
-        this.vexNote.keys.forEach( (n,i) => {
-            if(n.indexOf('#') !== -1) {
-                self.vexNote.addAccidental(i, new VF.Accidental("#"));
-            }
-        });
-    }
 
-
-    function renderVex(notes, pos) {
+    function renderVex(notes, key, pos) {
         if(typeof pos === 'undefined') pos = START_NOTE_X;
         // It seems like adding a set number makes things somewhat smoother - and the more we have the smoother
         // if we lengthen the formatted width, we get the same skip
@@ -48,9 +31,10 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         let stave = new VF.Stave(10, 40, 800);
         stave.addClef('treble'); //.addTimeSignature('4/4');
 
-        // key signature test
-        keySig = new VF.KeySignature($('#keysig').val());
-        keySig.addToStave(stave);
+        if(!!key) {
+            keySig = new VF.KeySignature(key);
+            keySig.addToStave(stave);
+        }
 
         stave.setContext(context).draw();
         stave.setNoteStartX(pos);
@@ -73,7 +57,6 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
                           Vex.Flow.Renderer.Backends.CANVAS);
                   keyboard = instrument; 
               },
-        Note: Note,
         startNoteX: START_NOTE_X,
         renderVex: renderVex
     }

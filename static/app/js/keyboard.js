@@ -4,7 +4,9 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     // would allow me to get keys by octave and ensure correct layout for random
 
     var WHITE=0, BLACK=1;
-    var noteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
+    var noteNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    // FIXME these are not all, get from vex
+    var allNoteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
     var octaveIds = ['00','0','1','2','3','4','5','6','7']; // string on purpose 
 
     // TODO MIDDLE C SHOULD BE A KEY, NOT ID
@@ -40,12 +42,12 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
         function octave(idx) {
             var O = { id: idx, keys: [] };
-            for(var k=0; k < noteNames.length; k++) {
-                var name = noteNames[k];
+            for(var k=0; k < allNoteNames.length; k++) {
+                var name = allNoteNames[k];
                 O.keys.push({ 
                     id: '' + idx + name,
                     note: name,
-                    color: noteNames[k].indexOf('s') === -1 ? WHITE : BLACK
+                    color: allNoteNames[k].indexOf('s') === -1 ? WHITE : BLACK
                 });
             }
             return O;
@@ -91,7 +93,7 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         _.each(this.keys, function(keyObj) {
             self.keysById[ keyObj.id ] = keyObj;
         });
-        _.each(noteNames, function(note) {
+        _.each(allNoteNames, function(note) {
             self.keysByNote[note] = _.compact(
                     _.map(octaveIds, function(oId) { 
                         return self.keysById[oId+note]; 

@@ -1,16 +1,41 @@
 // FIXME pressing a button rapidly can give two points
 // TODO ensure that evaluate / evaluateSimple is only running once, it logs multiple times...
-define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, MusicSheet, dispatcher, util) {
+define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, Rx, Vex, MusicSheet, dispatcher, util) {
 
+    const MODIFIED_NOTES = {
+        '#': ['F', 'C', 'G', 'D', 'A', 'E', 'B'],
+        'b': ['B', 'E', 'A', 'D', 'G', 'C', 'F']
+    };
 
     var gameStop, 
         gameStart,
         keyboard,
-        keySig,
         scoreBoard, 
         progressBar;
 
-    var Note = MusicSheet.Note;
+     // Note: object to be rendered on staff
+     // has pointer to relevant key
+     // FIXME get rid of the note/vexNote duality
+    function Note(name, key, vexNote) {
+        let VF = Vex.Flow;
+        this.status = null;
+        this.key = key;
+        if(!!vexNote) {
+            console.log('provided');
+            this.vexNote = vexNote;
+        } else {
+            console.log('missing');
+            this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [name.replace('s', '#')+'/4'], duration: 'q', auto_stem: true });
+        }
+
+        var self = this;
+        this.vexNote.keys.forEach( (n,i) => {
+            if(n.indexOf('#') !== -1) {
+                self.vexNote.addAccidental(i, new VF.Accidental("#"));
+            }
+        });
+    }
+
 
     var setNoProgress = () => updateProgressBar(0, 1);
     var setMaxProgress = () => updateProgressBar(1, 1);
@@ -41,15 +66,42 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
 
     function generateSimple() {
-        let first = keyboard.keysById['3C'],
-            last = keyboard.keysById['3B'],
-            min = keyboard.keys.indexOf(first),
-            max = keyboard.keys.indexOf(last),
-            n;
-        do {
-            n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
-        } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
-        return new Note(keyboard.keys[n].id);
+        if(!this.key) {
+            // Outmoded, was using range - TODO move to method below
+            let first = keyboard.keysById['3C'],
+                last = keyboard.keysById['3B'],
+                min = keyboard.keys.indexOf(first),
+                max = keyboard.keys.indexOf(last),
+                n;
+            do {
+                n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
+            } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
+
+            let kbKey = keyboard.keys[n];
+            let vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [kbKey.note.replace('s', '#')+'/4'], duration: 'q', auto_stem: true });
+            return new Note(kbKey.note, kbKey, vexNote);
+        } else {
+            let min = 0,
+                max = keyboard.noteNames.length-1, // should be 6 (7 notes)
+                n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
+                noteName = keyboard.noteNames[n],
+                keyId = '3'+noteName;
+
+            let keySpec = Vex.Flow.keySignature.keySpecs[this.key];
+
+            let vexNote = new Vex.Flow.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/4'], duration: 'q', auto_stem: true });
+
+            if(!!keySpec.acc) {
+                let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
+
+                if(modifiedNotes.indexOf(noteName) !== -1) {
+                    keyId = '3'+noteName + (keySpec.acc === '#' ? 's' : 'XXX');
+                    vexNote.setStyle({fillStyle: "blue", strokeStyle: "blue"});
+                    //vexNote.setKeyStyle(index, style) // single note-head
+                }
+            }
+            return new Note(noteName, keyboard.keysById[keyId], vexNote);
+        }
     }
 
 
@@ -65,6 +117,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         let gt = util.gameTypes; 
 
         this.type = opts.type;
+        this.key = opts.key;
         console.log('game is type '+gt.names[this.type]);
 
         this.streamSpeed = this.type === gt.FLOW ? -10 : -7;
@@ -79,8 +132,9 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         // more concise code
         let kb = keyboard;
-            clearAllKeys = kb.clearAllKeys.bind(kb);
-            activateKey = kb.activateKey.bind(kb);
+            clearAllKeys = kb.clearAllKeys.bind(kb),
+            activateKey = kb.activateKey.bind(kb),
+            generate = this.generate.bind(this),
             evaluate = this.evaluate.bind(this);
 
         var self = this;
@@ -144,7 +198,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
                 tempo = 0;
             } 
             return pos + tempo;
-        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderVex(playQueue, p) );
+        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderVex(playQueue, self.key, p) );
 
 
         // TODO move this into settings somewhere
@@ -175,7 +229,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
             if(playQueue.length < 12) 
-                notegen.onNext(generateSimple())
+                notegen.onNext(generate())
             // advance the keyboard UI
             activateKey(playQueue[0].key); 
         },
@@ -184,7 +238,7 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         () => {
             console.log('ENDING GAME');
             clearAllKeys();
-            //MusicSheet.renderVex([]); // this breaks with vex
+            //MusicSheet.renderVex([], self.key); // this breaks with vex
             setNoProgress();
             dispatcher.trigger('game::over');
         });
@@ -192,17 +246,19 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
 
         let gamePlay = notegen.takeUntil(ender).subscribe( n => playQueue.push(n) );
 
-        let startNote = new Note(kb.MIDDLE_C);
+        // TODO revert his to passing in key/keysig and doing map logic in constructor, since we have to duplicate here for modifier
+        let startNote = new Note('C', kb.keysById[kb.MIDDLE_C]);
         notegen.onNext(startNote);
         activateKey(startNote.key); 
         for(let z=0; z<11; z++) {
-            notegen.onNext(generateSimple());
+            notegen.onNext(this.generate());
         }
-        MusicSheet.renderVex(playQueue);
+        MusicSheet.renderVex(playQueue, this.key);
         scoreBoard.text('0');
     }
 
     Game.prototype.evaluate = evaluateSimple;
+    Game.prototype.generate = generateSimple;
 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
@@ -216,7 +272,6 @@ define(['jquery', 'rxjs', './sheet', './dispatcher', './util'], function($, Rx, 
         gameStop = $('#stop-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
-        keySig = $('keysig');
 
         // TODO see main.js for TODO
         // remove UI functions from this file
