@@ -1,8 +1,5 @@
 define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatcher, _, audio) {
 
-    // TODO add a sortable to keys such that keys are sorted by keyboard order?
-    // would allow me to get keys by octave and ensure correct layout for random
-
     var WHITE=0, BLACK=1;
     var noteNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
     // FIXME these are not all, get from vex

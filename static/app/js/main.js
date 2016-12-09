@@ -167,11 +167,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // populate the available keys
                 
                 keySig = $('#keysig');
-                let keyHtml = keySig.html();
-                for(var ks in Vex.Flow.keySignature.keySpecs) {
-                    keyHtml += '<option value="'+ks+'">'+ks+'</option>';
-                }
-                keySig.html(keyHtml);
                 // TODO use select keysig from UI, and place click handler there to update select & graphics in place
                 // so that user does not have to choose based on previous knowledge
                 //keySig.on('change', ev => console.log(ev))
