@@ -210,7 +210,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
                 gameOverMsg.text(msg);
                 // allow middle c to close the dialog so user doesn't need to use laptop
-                easyDismi$$ = playerPresses.filter((key) => key.id === keyboard.MIDDLE_C).take(1).subscribe(()=> {
+                easyDismi$$ = playerPresses.filter((key) => key === keyboard.MIDDLE_C).take(1).subscribe(()=> {
                     gameOver.modal('hide');
                     onPlayAgain();
                 });

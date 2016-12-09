@@ -1,30 +1,33 @@
 define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatcher, _, audio) {
 
-    var WHITE=0, BLACK=1;
     var noteNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-    // FIXME these are not all, get from vex
-    var allNoteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
     var octaveIds = ['00','0','1','2','3','4','5','6','7']; // string on purpose 
 
-    // TODO MIDDLE C SHOULD BE A KEY, NOT ID
-    var MIDDLE_OCTAVE = '3',
-        MIDDLE_C = '3C';
+    let htmlNoteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
+    let keyAliases = {
+        'C': ['Bs'],
+        'Cs': ['Db'],
+        'Ds': ['Eb'],
+        'E': ['Fb'],
+        'F': ['Es'],
+        'Fs': ['Gb'],
+        'Gs': ['Ab'],
+        'As': ['Bb'],
+        'B': ['Cb']
+    };
 
     function createKeyboardLayout() {
         var firstOctave = {
             id: '00',
             keys: [{
                     id: '00A',
-                    note: 'A',
-                    color: WHITE
+                    note: 'A'
                 }, {
                     id: '00As',
-                    note: 'As',
-                    color: BLACK
+                    note: 'As'
                 }, {
                     id: '00B',
-                    note: 'B',
-                    color: WHITE
+                    note: 'B'
                 }]
         };
 
@@ -32,19 +35,17 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
             id: '07',
             keys: [{
                     id: '7C',
-                    note: 'C',
-                    color: WHITE
+                    note: 'C'
                 }]
         };
 
         function octave(idx) {
             var O = { id: idx, keys: [] };
-            for(var k=0; k < allNoteNames.length; k++) {
-                var name = allNoteNames[k];
+            for(var k=0; k < htmlNoteNames.length; k++) {
+                var name = htmlNoteNames[k];
                 O.keys.push({ 
                     id: '' + idx + name,
-                    note: name,
-                    color: allNoteNames[k].indexOf('s') === -1 ? WHITE : BLACK
+                    note: name
                 });
             }
             return O;
@@ -71,8 +72,6 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         this.max = opts.max || 108;
         this.blacklist = opts.blacklist || [];
 
-        this.MIDDLE_C = MIDDLE_C;
-        this.MIDDLE_OCTAVE = MIDDLE_OCTAVE;
 
         this.noteNames = noteNames;
 
@@ -81,24 +80,40 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         // a way to cross reference from MIDI notes
         this.keys = _.flatten( _.map(this.octaves, function(o) { return o.keys; }));
 
-        // ...and ways to reference keys directly
-        this.keysById = new Object; 
-        this.keysByNote = new Object;
-        this.keysByOctaveId = new Object;
+        // ensure each note has an element to play with
+        // because ids from the game may not match up to the
+        // unique id used for HTML
+        this.keys.forEach( key => {
+            key.$el = $('#'+key.id);
+        });
 
+        // ...and a way to reference keys directly
+        this.keysById = new Object; 
         var self = this;
         _.each(this.keys, function(keyObj) {
             self.keysById[ keyObj.id ] = keyObj;
         });
-        _.each(allNoteNames, function(note) {
-            self.keysByNote[note] = _.compact(
-                    _.map(octaveIds, function(oId) { 
-                        return self.keysById[oId+note]; 
-                    }));
-        });
-        _.each(this.octaves, function(oct) {
-            self.keysByOctaveId[oct.id] = oct.keys;
-        });
+
+
+        // ... even if we use an alternate name!
+        // WARNING: there may be keys for which there are no notes
+        for(let k in keyAliases) {
+            for(let kprime of keyAliases[k]) {
+                for(let o of octaveIds) {
+                    if(!!this.keysById[o+k]) {
+                        let oprime = o;
+                        if(k === 'C' && kprime ==='Bs' && o !== '00') oprime = octaveIds[octaveIds.indexOf(o)-1];
+                        else if(k === 'B' && kprime ==='Cb') oprime = octaveIds[octaveIds.indexOf(o)+1];
+                        //console.log("SHIFTING "+this.keysById[o+k].id + " to "+oprime+kprime);
+                        this.keysById[oprime+kprime] = this.keysById[o+k];
+                    }
+                }
+            }
+        }
+
+        // TODO visualy inspect each and every note after this construction
+
+        this.MIDDLE_C = this.keysById['3C'];
 
         // handle keys
         dispatcher.on('key::press', function(key) {
@@ -110,11 +125,6 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
             if(!self.silent) self.stopNote(key); // how to handle this?
         });
     }
-
-
-    Keyboard.prototype.idxOfId = function(keyId) {
-        return this.keys.indexOf(this.keysById[keyId]);
-    };
 
 
     // ===================
@@ -181,16 +191,17 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     // ===================
     
 
+    // FIXME to handle the new scheme where id may not be in HTML, set $el or elem on key object during construction
     Keyboard.prototype.colorKey = function(key, clazz, duration) {
-        $('#'+key.id).addClass(clazz);
+        key.$el.addClass(clazz);
         if(!!duration) setTimeout(function() {
-            $('#'+key.id).removeClass(clazz);
+            key.$el.removeClass(clazz);
         }, duration);
     }
 
 
     Keyboard.prototype.clearKey = function(key) {
-        $('#'+key.id).removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
+        key.$el.removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
     }
 
 

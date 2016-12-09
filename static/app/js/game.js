@@ -14,38 +14,37 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
      // Note: object to be rendered on staff
      // has pointer to relevant key
-     // TODO accept note name, octave, not keyboard id...
-    function Note(noteName, pKeyId, keysig) {
+     // octave is coerced to string so can be int/string. This allows 00 to match current HTML
+    function Note(noteName, octave, keysig) {
         let VF = Vex.Flow;
         this.status = null;
         this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/4'], duration: 'q', auto_stem: true });
-        // change render color to give hint. 
-        // Not in render to avoid calculating across persistent identity during animtation
-        if(!!keysig) {
-            let keySpec = VF.keySignature.keySpecs[keysig];
-            if(!!keySpec.acc) {
-                let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
-                if(modifiedNotes.indexOf(noteName) !== -1) {
-                    pKeyId = '3'+noteName+ (keySpec.acc === '#' ? 's' : 'XXX');
-                    this.vexNote.setStyle({fillStyle: "blue", strokeStyle: "blue"});
-                    //this.vexNote.setKeyStyle(index, style) // single note-head
-                }
-            }
-        }
 
-        //  TODO We can combine this with the above check - when we add chords it will be NECESSARY
-        //  1. loop over with index, if has #/b then add accidental, ELSE if(keyspec) setKeyStyle on index!!
-        //  The else only makes sense if accidentals are impossible for modified keys... VERIFY
-        //  TODO another setting that changes frequency of accidentals (should default to 0 when using keysig)
+        let keySpec = !!keysig ? VF.keySignature.keySpecs[keysig] : null;
+
+        let pKeyId = ''+octave+noteName;
+
         var self = this;
         this.vexNote.keys.forEach( (n,i) => {
-            if(n.indexOf('#') !== -1) {
-                self.vexNote.addAccidental(i, new VF.Accidental("#"));
+            // actualy display the accidental if one is present
+            let acc = self.vexNote.keyProps[i].accidental;
+            if(!!acc) self.vexNote.addAccidental(i, new VF.Accidental(acc));
+
+            // change render color to give hint. 
+            if(!!keySpec && !!keySpec.acc) {
+                let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
+                if(modifiedNotes.indexOf(noteName) !== -1) {
+                    pKeyId = '' + octave + noteName + (keySpec.acc === '#' ? 's' : 'b');
+                    // single note-head, works in chords, otherwise use setStyle (stroke works)
+                    this.vexNote.setKeyStyle(i, { fillStyle: "blue" }) 
+                }
             }
         });
 
         this.key = keyboard.keysById[pKeyId];
-        console.log('key chosen from pKeyId '+pKeyId+' : '+this.key);
+        if(!this.key) { 
+            debugger;
+        }
     }
 
 
@@ -70,7 +69,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
-        let success = attempt.target.id === attempt.pressed.id;
+        let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
                 { success: success, modifier: delta });
@@ -78,33 +77,21 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
 
     function generateSimple() {
-        if(!this.key) { // null check, not existence check
-            // Outmoded, was using range - TODO migrate to method below
-            let first = keyboard.keysById['3C'],
-                last = keyboard.keysById['3B'],
-                min = keyboard.keys.indexOf(first),
-                max = keyboard.keys.indexOf(last),
-                n;
-            do {
-                n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
-            } while(keyboard.blacklist.indexOf(n + min) !== -1); // blacklist currently in MIDI
+        // TODO figure out note range for treble clef.  Always the same? Start from MIDDLE_C or key tonic?
+        // TODO add accidentals via randomness in order to make this the [only/base] case, NEVER if keysig by default
+        // could just be a global setting [ restrict sharp/flat while playing in key ]
+        // also don't forget: consider mode where we IMITATE a key by only using those accidentals. - what mechanic though?
+        let min = 0,
+            max = keyboard.noteNames.length-1, // should be 6 (7 notes)
+            n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
+            noteName = keyboard.noteNames[n];
 
-            let kbKey = keyboard.keys[n];
-            return new Note(kbKey.note, kbKey.id, this.key); // equivalent to: Note(kbKey.note, kbKey, null);
-
-        } else {
-            // TODO figure out note range for treble clef.  Always the same? Start from MIDDLE_C or key tonic?
-            // TODO add accidentals via randomness in order to make this the [only/base] case, NEVER if keysig by default
-            // could just be a global setting [ restrict sharp/flat while playing in key ]
-            // also don't forget: consider mode where we IMITATE a key by only using those accidentals. - what mechanic though?
-            let min = 0,
-                max = keyboard.noteNames.length-1, // should be 6 (7 notes)
-                n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
-                noteName = keyboard.noteNames[n],
-                keyId = '3'+noteName;
-
-            return new Note(noteName, keyId, this.key);
+        // All notes are fair game if no keysig
+        if(!this.key && Math.random() < 0.5) {
+            noteName += Math.random() < 0.5 ? 's' : 'b';
         }
+
+        return new Note(noteName, 3, this.key);
     }
 
 
@@ -235,7 +222,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             if(playQueue.length < 12) 
                 notegen.onNext(generate())
             // advance the keyboard UI
+            try {
             activateKey(playQueue[0].key); 
+            } catch(e) {
+                debugger;
+            }
         },
         (err) => console.log(err),
         // on complete (game ended)
@@ -250,10 +241,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let gamePlay = notegen.takeUntil(ender).subscribe( n => playQueue.push(n) );
 
-        // TODO revert his to passing in key/keysig and doing map logic in constructor, since we have to duplicate here for modifier
-        // FIXME this also does not work in certain keys.
         // TODO change MIDDLE_C to be the tonic of the particular key we are in.
-        let startNote = new Note('C', kb.MIDDLE_C, this.key);
+        let startNote = new Note('C', 3, this.key);
         notegen.onNext(startNote);
         activateKey(startNote.key); 
         for(let z=0; z<11; z++) {
