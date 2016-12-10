@@ -26,21 +26,25 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         var self = this;
         this.vexNote.keys.forEach( (n,i) => {
+            isModified = false;
+
             // actualy display the accidental if one is present
+            // TODO move keySignatures into keyprops ?
             let acc = self.vexNote.keyProps[i].accidental;
             if(!!acc) self.vexNote.addAccidental(i, new VF.Accidental(acc));
 
-            // change render color to give hint. 
+            // if there's a better (vexflow) way to do this, I don't know of it
+            // we don't want to set render properities outside of render functions
+            // so setting and forgetting the style is inappropriate
             if(!!keySpec && !!keySpec.acc) {
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
                 if(modifiedNotes.indexOf(noteName) !== -1) {
                     pKeyId = '' + octave + noteName + (keySpec.acc === '#' ? 's' : 'b');
-                    // single note-head, works in chords, otherwise use setStyle (stroke works)
-                    this.vexNote.setKeyStyle(i, { fillStyle: "blue" }) 
+                    isModified = true;
                 }
             }
+            self.vexNote.keyProps[i].signatureKeyHint = isModified;
         });
-
         this.key = keyboard.keysById[pKeyId];
         if(!this.key) { 
             debugger;

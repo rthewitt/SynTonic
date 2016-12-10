@@ -150,11 +150,14 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 MouseTrap.bind('esc', () => gameStop.trigger('click'));
 
                 gameOver.on('hidden.bs.modal', () => {
+                    // get rid of MIDI listener so it doesn't impact gameplay
                     if(!!easyDismi$$) {
                         easyDismi$$.dispose();
                         easyDismi$$ = null;
                     }
                 });
+
+                $('#settings').on('hidden.bs.modal', () => MusicSheet.renderVex([], currentKeySignature()) );
 
                 gameStop.on('click', onGameStop);
                 gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
@@ -226,6 +229,11 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 showSettings.attr('disabled', false);
             }
 
+            function currentKeySignature() {
+                let chosenKey = keySig.val();
+                return chosenKey === 'none' ?  null : chosenKey;
+            }
+
 
             function onGameStart(selected) { 
                 // this should never happen
@@ -240,7 +248,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 let gt = util.gameTypes;
                 let mode = gt.names.indexOf(selected);
-                let chosenKey = keySig.val();
                 switch(mode) {
                     case gt.FLOW:
                     case gt.STAMINA:
@@ -248,7 +255,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         game = new Games.Game({ 
                             type: mode,
                             keyboard: keyboard,
-                            key: chosenKey === 'none' ? null : chosenKey,
+                            key: currentKeySignature(),
                             keyHints: true,
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
