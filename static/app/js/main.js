@@ -129,9 +129,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             
             function startPianoApp() {
-                // TODO move everything keyboard related into keyboard
                 // so that we can pass instrument into the Game constructor once again
-                // (e.g., clearAllKeys and other UI functions)
                 MusicSheet.init(keyboard); // set up the Dom
 
                 showSettings = $('#show-settings');
@@ -157,7 +155,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 });
 
-                $('#settings').on('hidden.bs.modal', () => MusicSheet.renderVex([], currentKeySignature()) );
+                $('#settings').on('hidden.bs.modal', () => {
+                    keyboard.clearAllKeys();
+                    MusicSheet.renderVex([], currentKeySignature()); 
+                });
 
                 gameStop.on('click', onGameStop);
                 gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));

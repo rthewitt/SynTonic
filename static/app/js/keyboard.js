@@ -224,6 +224,10 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         this.colorKey(key, 'failure', 200);
     };
 
+    Keyboard.prototype.failKeyForever = function(key) {
+        this.colorKey(key, 'failure');
+    };
+
 
     // exports
     return Keyboard;

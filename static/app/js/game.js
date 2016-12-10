@@ -102,7 +102,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     function updateUIForAttempt(attempt) {
         if(attempt.success) {
             keyboard.successKey(attempt.pressed);
-        } else keyboard.failKey(attempt.pressed);
+        } else keyboard.failKeyForever(attempt.pressed);
     }
 
 
@@ -131,6 +131,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             activateKey = kb.activateKey.bind(kb),
             generate = this.generate.bind(this),
             evaluate = this.evaluate.bind(this);
+
+        clearAllKeys();
 
         var self = this;
 
@@ -236,7 +238,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // on complete (game ended)
         () => {
             console.log('ENDING GAME');
-            clearAllKeys();
+            //clearAllKeys();
             //MusicSheet.renderVex([], self.key); // this breaks with vex
             setNoProgress();
             dispatcher.trigger('game::over');
