@@ -202,7 +202,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 tempo = 0;
             } 
             return pos + tempo;
-        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderVex(playQueue, self.key, p) );
+        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderStaves(playQueue, self.key, p) );
 
 
         // TODO move this into settings somewhere
@@ -246,7 +246,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         () => {
             console.log('ENDING GAME');
             //clearAllKeys();
-            //MusicSheet.renderVex([], self.key); // this breaks with vex
+            //MusicSheet.renderStaves([], self.key); // this breaks with vex
             setNoProgress();
             dispatcher.trigger('game::over');
         });
@@ -261,7 +261,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         for(let z=0; z<11; z++) {
             notegen.onNext(this.generate());
         }
-        MusicSheet.renderVex(playQueue, this.key);
+        MusicSheet.renderStaves(playQueue, this.key);
         scoreBoard.text('0');
     }
 

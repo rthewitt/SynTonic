@@ -23,7 +23,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     var renderer;
 
 
-    function renderVex(notes, key, pos) {
+    function renderStaves(notes, key, pos) {
         if(typeof pos === 'undefined') pos = START_NOTE_X;
         let VF = Vex.Flow;
         renderer.resize(820, 200);
@@ -84,7 +84,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
               },
         startNoteX: START_NOTE_X,
         noteColors: NOTE_COLORS,
-        renderVex: renderVex
+        renderStaves: renderStaves
     }
 
 

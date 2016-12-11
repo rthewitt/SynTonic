@@ -157,7 +157,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 $('#settings').on('hidden.bs.modal', () => {
                     keyboard.clearAllKeys();
-                    MusicSheet.renderVex([], currentKeySignature()); 
+                    MusicSheet.renderStaves([], currentKeySignature()); 
                 });
 
                 gameStop.on('click', onGameStop);
