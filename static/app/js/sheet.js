@@ -1,6 +1,6 @@
 define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, Vex, dispatcher, util) {
 
-    const START_NOTE_X = 120; // multiple of both stream speeds means "cutoff" bar graphic looks correct
+    const START_NOTE_X = 175; // multiple of both stream speeds means "cutoff" bar graphic looks correct
     const TREBLE_BAR_HEIGHT = 25;
     const UNDERBAR = 177;
     const CANVAS_WIDTH = 600;
@@ -25,22 +25,29 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
     function renderVex(notes, key, pos) {
         if(typeof pos === 'undefined') pos = START_NOTE_X;
-        // It seems like adding a set number makes things somewhat smoother - and the more we have the smoother
-        // if we lengthen the formatted width, we get the same skip
-        // WHY? is it because we briefly render without adding another note? Is it state mutation from shifting? 
-        notes = notes.slice(0, 6);
         let VF = Vex.Flow;
         renderer.resize(820, 200);
         let context = renderer.getContext();
         context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
 
-        let stave = new VF.Stave(10, 40, 800);
-        stave.addClef('treble'); //.addTimeSignature('4/4');
+        let dummyStave = new VF.Stave(10, 40, 150);
+        dummyStave.addClef('treble'); //.addTimeSignature('4/4');
+
+        dummyStave.setNoteStartX(75);
+        let rest = new VF.StaveNote({clef: "treble", keys: ["b/4"], duration: "wr" });
+
 
         if(!!key) {
             keySig = new VF.KeySignature(key);
-            keySig.addToStave(stave);
+            keySig.addToStave(dummyStave);
         }
+
+        dummyStave.setContext(context).draw();
+        VF.Formatter.FormatAndDraw(context, dummyStave, [rest]);
+
+        notes = notes.slice(0, 6);
+
+        let stave = new VF.Stave(dummyStave.x+dummyStave.width, 40, 650);
 
         stave.setContext(context).draw();
         stave.setNoteStartX(pos);
@@ -65,7 +72,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         voice.setStrict(false); // remove tick counting, we aren't using measures
         voice.addTickables(vexNotes);
 
-        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 800);
+        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 700);
         voice.draw(context, stave);
     }
 

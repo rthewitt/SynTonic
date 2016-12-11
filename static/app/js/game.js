@@ -143,6 +143,12 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         var playQueue = window.playQueue = [];
         var floatyNotes = [];
         
+        // These are FUNCTIONS
+        let firstNoteX = () => playQueue[0].vexNote.getAbsoluteX(),
+            firstNoteWidth = () => playQueue[0].vexNote.width,
+            firstNotePadding = () => playQueue[0].vexNote.left_modPx,
+            firstNoteWidthAndPadding = () =>  firstNoteWidth() + firstNotePadding();
+
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: playQueue[0].key, pressed: x })).map(evaluate);
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
@@ -183,14 +189,15 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((pos, tick) => { 
             let tempo = self.streamSpeed;
 
+
             if(playQueue[0].status === 'success') {
                 floatyNotes.push( playQueue.shift() ); 
-                //console.log('abs: ' +playQueue[0].vexNote.getAbsoluteX() + '\npos: '+pos);
                 // new start position needs to take into account accidentals if there is one (left_modPx)
-                return playQueue[0].vexNote.getAbsoluteX() + tempo - (playQueue[0].vexNote.width + playQueue[0].vexNote.left_modPx); 
+                return firstNoteX() + tempo - firstNoteWidthAndPadding();
             }
 
-            if(playQueue[0].vexNote.getAbsoluteX() <= 100) {
+            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - firstNoteWidth() : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
+            if(firstNoteX() <= cutoff) {
                 if(this.type === gt.STAMINA) dispatcher.trigger('key::miss');
                 tempo = 0;
             } 
