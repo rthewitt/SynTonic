@@ -147,11 +147,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             floatyNotes = playQueue.floatyNotes,
             futureNotes = playQueue.futureNotes;
         
-        // These are FUNCTIONS
-        let firstNoteX = () => futureNotes[0].vexNote.getAbsoluteX(),
-            firstNoteWidth = () => futureNotes[0].vexNote.width,
-            firstNotePadding = () => futureNotes[0].vexNote.left_modPx,
-            firstNoteWidthAndPadding = () =>  firstNoteWidth() + firstNotePadding();
+
+        let firstNote = () => floatyNotes.length ? floatyNotes[0] : futureNotes[0];
+
+        let X = n => n.vexNote.getAbsoluteX(),
+            Width = n => n.vexNote.width,
+            Padding = n => n.vexNote.left_modPx;
+            WidthAndPadding = n => Padding(n) + n.vexNote.left_modPx;
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate);
@@ -189,19 +191,20 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         });
 
 
-        // TODO we are using state change from moveForward. There is jiggle / twitch
         let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((pos, tick) => { 
             let tempo = self.streamSpeed;
-
 
             if(futureNotes[0].status === 'success') {
                 floatyNotes.push( futureNotes.shift() ); 
                 // new start position needs to take into account accidentals if there is one (left_modPx)
-                return firstNoteX() + tempo - firstNoteWidthAndPadding();
+                let first = firstNote();
+                return X(first) + tempo - WidthAndPadding(first);
             }
 
-            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - firstNoteWidth() : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
-            if(firstNoteX() <= cutoff) {
+            let first = firstNote();
+            // WILL THIS WORK WITH SUCCESS?
+            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - Width(first) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
+            if(X(first) <= cutoff) {
                 if(this.type === gt.STAMINA) dispatcher.trigger('key::miss');
                 tempo = 0;
             } 

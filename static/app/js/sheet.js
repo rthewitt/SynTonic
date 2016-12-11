@@ -9,15 +9,16 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     const NOTES_POS_H = [184, 184, 172, 172, 157, 145, 145, 132, 132, 120, 120, 107];
     const NOTE_COLORS = {
         //'active': '#CCFF33',
-        'active': 'yellow', // more pronounced than piano key active color
+        'active': 'orange', // more pronounced than piano key active color
         'hint': 'blue',
         'failure': '#FF3357',
         'success': '#46EC00'
     };
 
-    const activeStyle = { shadowColor: NOTE_COLORS['active'], shadowBlur: 10 }
-    const modStyle = { fillStyle: NOTE_COLORS['hint'] };
+    const activeStyle = { fillStyle: NOTE_COLORS['active'], strokeStyle: NOTE_COLORS['active'] }
+    const modStyle = { shadowColor: NOTE_COLORS['hint'], shadowBlur: 15 };
     const activeModStyle = Object.assign({}, activeStyle, modStyle);
+    const successStyle = { fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] };
 
     // vex
     var renderer;
@@ -65,27 +66,33 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
             });
         }
 
+        let floatyVexNotes = notes.floatyNotes.map( n => n.vexNote );
+        if(floatyVexNotes.length) {
+            floatyVexNotes.forEach( (vn, vi) => {
+                // TODO consider how chords will be done - likely
+                // we will have to loop on note.keys first and
+                // set style as aggregate if we want to show red/green
+                vn.setStyle(successStyle);
+            });
+
+        }
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        futureVoice.addTickables(futureVexNotes);
+        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes));
 
-        /*
-        let otherNote = new VF.StaveNote({clef: "treble", keys: ["B/4"], duration: "q", auto_stem: true});
-        otherNote.setStyle({ fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] });
-        let sVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
-        sVoice.setStrict(false);
-        sVoice.addTickables([otherNote]);
+        /* FIXME success will be same voice as future notes, erors will be overlayed
+        let floatyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+        floatyVoice.setStrict(false); // remove tick counting, we aren't using measures
+        floatyVoice.addTickables(floatyVexNotes);
         */
-
 
         // we are NOT joining voices, which ONLY handles accidental collision avoidence
         // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
-        //let formatter = new VF.Formatter().format([voice, sVoice], 700);
-        // TODO add other voices back
+        //let formatter = new VF.Formatter().format([futureVoice, floatyVoice], 700);
         let formatter = new VF.Formatter().format([futureVoice], 700);
         futureVoice.draw(context, stave);
-        //sVoice.draw(context, stave);
+        //floatyVoice.draw(context, stave);
     }
 
     return {
