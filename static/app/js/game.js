@@ -139,18 +139,22 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // "generator" for notes
         var notegen = new Rx.Subject();
 
-        // state variables
-        var playQueue = window.playQueue = [];
-        var floatyNotes = [];
+        // state variables (actually several queues)
+        var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [] };
+
+        // conveniences
+        let faultyNotes = playQueue.fautlyNotes,
+            floatyNotes = playQueue.floatyNotes,
+            futureNotes = playQueue.futureNotes;
         
         // These are FUNCTIONS
-        let firstNoteX = () => playQueue[0].vexNote.getAbsoluteX(),
-            firstNoteWidth = () => playQueue[0].vexNote.width,
-            firstNotePadding = () => playQueue[0].vexNote.left_modPx,
+        let firstNoteX = () => futureNotes[0].vexNote.getAbsoluteX(),
+            firstNoteWidth = () => futureNotes[0].vexNote.width,
+            firstNotePadding = () => futureNotes[0].vexNote.left_modPx,
             firstNoteWidthAndPadding = () =>  firstNoteWidth() + firstNotePadding();
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: playQueue[0].key, pressed: x })).map(evaluate);
+        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate);
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
         // create and switch to new timer every time user reaches relay point!!
@@ -190,8 +194,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             let tempo = self.streamSpeed;
 
 
-            if(playQueue[0].status === 'success') {
-                floatyNotes.push( playQueue.shift() ); 
+            if(futureNotes[0].status === 'success') {
+                floatyNotes.push( futureNotes.shift() ); 
                 // new start position needs to take into account accidentals if there is one (left_modPx)
                 return firstNoteX() + tempo - firstNoteWidthAndPadding();
             }
@@ -225,18 +229,18 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         // trigger a relay attempt if we make it to 30!
         attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
-            playQueue[0].status = 'success';
+            futureNotes[0].status = 'success';
             if(n % 30 === 0) dispatcher.trigger('game::relay');
         });
 
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
-            if(playQueue.length < 12) 
+            if(futureNotes.length < 12) 
                 notegen.onNext(generate())
             // advance the keyboard UI
             try {
-            activateKey(playQueue[0].key); 
+            activateKey(futureNotes[0].key); 
             } catch(e) {
                 debugger;
             }
@@ -252,7 +256,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         });
 
 
-        let gamePlay = notegen.takeUntil(ender).subscribe( n => playQueue.push(n) );
+        let gamePlay = notegen.takeUntil(ender).subscribe( n => futureNotes.push(n) );
 
         // TODO change MIDDLE_C to be the tonic of the particular key we are in.
         let startNote = new Note('C', 3, this.key);

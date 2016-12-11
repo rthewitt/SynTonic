@@ -24,6 +24,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
 
     function renderStaves(notes, key, pos) {
+
         if(typeof pos === 'undefined') pos = START_NOTE_X;
         let VF = Vex.Flow;
         renderer.resize(820, 200);
@@ -45,19 +46,16 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         dummyStave.setContext(context).draw();
         VF.Formatter.FormatAndDraw(context, dummyStave, [rest]);
 
-        notes = notes.slice(0, 6);
-
         let stave = new VF.Stave(dummyStave.x+dummyStave.width, 40, 650);
 
         stave.setContext(context).draw();
         stave.setNoteStartX(pos);
 
-        // TODO change note names, separate octave from id or reverse order truncate zero-pad
-        // FIXME note that octave id is not zero based in vexflow
+        // FIXME note that octave id is not zero based in vexflow (3C vs C/4 for middle c)
         // color the note appropriately (active / modifier hints)
-        let vexNotes = notes.map( n => n.vexNote );
-        if(vexNotes.length) {
-            vexNotes.forEach( (vn,vi) => {
+        let futureVexNotes = notes.futureNotes.slice(0, 6).map( n => n.vexNote );
+        if(futureVexNotes.length) {
+            futureVexNotes.forEach( (vn,vi) => {
                 if(vi === 0) vn.setStyle(activeStyle);
                 vn.keyProps.forEach( (n,i) => {
                     if(n.signatureKeyHint) {
@@ -68,12 +66,26 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         }
 
 
-        let voice = new VF.Voice({ num_beats: 4, beat_value: 4 });
-        voice.setStrict(false); // remove tick counting, we aren't using measures
-        voice.addTickables(vexNotes);
+        let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+        futureVoice.setStrict(false); // remove tick counting, we aren't using measures
+        futureVoice.addTickables(futureVexNotes);
 
-        let formatter = new VF.Formatter().joinVoices([voice]).format([voice], 700);
-        voice.draw(context, stave);
+        /*
+        let otherNote = new VF.StaveNote({clef: "treble", keys: ["B/4"], duration: "q", auto_stem: true});
+        otherNote.setStyle({ fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] });
+        let sVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+        sVoice.setStrict(false);
+        sVoice.addTickables([otherNote]);
+        */
+
+
+        // we are NOT joining voices, which ONLY handles accidental collision avoidence
+        // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
+        //let formatter = new VF.Formatter().format([voice, sVoice], 700);
+        // TODO add other voices back
+        let formatter = new VF.Formatter().format([futureVoice], 700);
+        futureVoice.draw(context, stave);
+        //sVoice.draw(context, stave);
     }
 
     return {
