@@ -46,9 +46,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             self.vexNote.keyProps[i].signatureKeyHint = isModified;
         });
         this.key = keyboard.keysById[pKeyId];
-        if(!this.key) { 
-            debugger;
-        }
     }
 
 
@@ -76,7 +73,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
-                { success: success, modifier: delta });
+                { success: success, modifier: delta }); // score modifier
     }
 
 
