@@ -79,7 +79,8 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes));
+        //futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes));
+        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 6));
 
         /* FIXME success will be same voice as future notes, erors will be overlayed
         let floatyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });

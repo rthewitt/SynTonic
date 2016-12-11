@@ -152,8 +152,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let X = n => n.vexNote.getAbsoluteX(),
             Width = n => n.vexNote.width,
-            Padding = n => n.vexNote.left_modPx;
-            WidthAndPadding = n => Padding(n) + n.vexNote.left_modPx;
+            Padding = n => n.vexNote.left_modPx; // accidentals, etc
+            WidthAndPadding = n => Width(n) + Padding(n);
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate);
@@ -191,20 +191,28 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         });
 
 
+        function calcStreamDelta(delta) {
+            let first = firstNote();
+            // take into account accidentals if there is one (padding)
+            return X(first) + delta - WidthAndPadding(first);
+        }
+
         let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((pos, tick) => { 
             let tempo = self.streamSpeed;
 
-            if(futureNotes[0].status === 'success') {
-                floatyNotes.push( futureNotes.shift() ); 
-                // new start position needs to take into account accidentals if there is one (left_modPx)
-                let first = firstNote();
-                return X(first) + tempo - WidthAndPadding(first);
+            if(floatyNotes.length && X(floatyNotes[0]) < (MusicSheet.startNoteX-75)) {
+                floatyNotes.shift();
+                return calcStreamDelta(tempo);
             }
 
-            let first = firstNote();
+            if(futureNotes[0].status === 'success') {
+                floatyNotes.push( futureNotes.shift() ); 
+                return calcStreamDelta(tempo);
+            }
+
             // WILL THIS WORK WITH SUCCESS?
-            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - Width(first) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
-            if(X(first) <= cutoff) {
+            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - Width(firstNote()) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
+            if(X(futureNotes[0]) <= cutoff) {
                 if(this.type === gt.STAMINA) dispatcher.trigger('key::miss');
                 tempo = 0;
             } 
