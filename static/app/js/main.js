@@ -127,6 +127,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 console.log('Failed to get MIDI access - ' + msg);
             }
 
+            function clearUI() {
+                keyboard.clearAllKeys();
+                MusicSheet.renderStavesEmpty(currentKeySignature()); 
+            }
             
             function startPianoApp() {
                 // so that we can pass instrument into the Game constructor once again
@@ -155,25 +159,24 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 });
 
-                $('#settings').on('hidden.bs.modal', () => {
-                    keyboard.clearAllKeys();
-                    MusicSheet.renderStaves([], currentKeySignature()); 
-                });
+                $('#settings').on('shown.bs.modal', clearUI);
+
+                // came from settings dialog
+                $('#play-now').on('click', () => onGameStart($('#mode-display').text().toUpperCase()) );
 
                 gameStop.on('click', onGameStop);
                 gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
 
-                $('#game-type-ul li').on('click', function(){
-                    $('#mode-display').text($(this).text());
-                });
+                $('#game-type-ul li').on('click', (ev) => $('#mode-display').text($(ev.currentTarget).text()));
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
-                // populate the available keys
-                
                 keySig = $('#keysig');
                 // TODO use select keysig from UI, and place click handler there to update select & graphics in place
                 // so that user does not have to choose based on previous knowledge
-                //keySig.on('change', ev => console.log(ev))
+                keySig.on('change', ev => {
+                    keyboard.clearAllKeys();
+                    MusicSheet.renderStavesEmpty(currentKeySignature()); 
+                });
 
 
                 // requires a game to exist of course

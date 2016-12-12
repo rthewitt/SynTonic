@@ -24,8 +24,6 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     // vex
     var renderer;
 
-
-
     // TODO
     // we will need to expand this to get rest of duration equal to passed in success note
     // in the near future
@@ -33,6 +31,14 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         return new Vex.Flow.GhostNote({clef: "treble", keys: ["b/4"], duration: "qr" });
     }
 
+    function renderStavesEmpty(key) {
+        let emptyPlayQueue = {
+            floatyNotes: [],
+            faultyNotes: [],
+            futureNotes: []
+        };
+        renderStaves(emptyPlayQueue, key);
+    }
 
     function renderStaves(notes, key, pos) {
 
@@ -117,6 +123,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
               },
         startNoteX: START_NOTE_X,
         noteColors: NOTE_COLORS,
+        renderStavesEmpty: renderStavesEmpty,
         renderStaves: renderStaves
     }
 
