@@ -80,6 +80,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
+        console.log('EVAL');
         let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
@@ -106,7 +107,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
     function updateUIForAttempt(attempt) {
-        console.log('HERE IT IS');
+        console.log('Update UI');
         if(attempt.success) {
             keyboard.successKey(attempt.pressed);
         } else keyboard.failKeyForever(attempt.pressed);
@@ -120,9 +121,10 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.type = opts.type;
         // TODO change this and all occurences to keysig to avoid ambiguity with Note.key / pianoKey
         this.key = opts.key;
-        console.log('game is type '+gt.names[this.type]);
 
-        this.streamSpeed = this.type === gt.FLOW ? -10 : -7;
+        if(this.type === gt.FLOW) this.streamSpeed = -10;
+        else if(this.type === gt.SCALES) this.streamSpeed = 0;
+        else this.streamSpeed = -7;
 
         this.reward = 1;
         this.penalty = 0;
@@ -163,7 +165,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             WidthAndPadding = n => Width(n) + Padding(n);
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate);
+        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate).publish().refCount();
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
         // create and switch to new timer every time user reaches relay point!!
@@ -180,7 +182,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
 
         // Update UI!
-        attempts.do(updateUIForAttempt).subscribe();
+        this.update$ = attempts.do(updateUIForAttempt).subscribe();
 
         let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
 
@@ -260,35 +262,42 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             if(n % 30 === 0) dispatcher.trigger('game::relay');
         });
 
-        // player needs a new key to play!
-        // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
-        let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success).delay(100).do(clearAllKeys).subscribe((attempt) => {
+
+        function advanceForever() {
             if(futureNotes.length < 12) 
                 notegen.onNext(generate())
             // advance the keyboard UI
-            try {
             activateKey(futureNotes[0].key); 
-            } catch(e) {
-                debugger;
-            }
-        },
-        (err) => console.log(err),
-        // on complete (game ended)
-        () => {
-            console.log('ENDING GAME');
-            setNoProgress();
-            dispatcher.trigger('game::over');
-        });
+        }
+
+        let advance = this.type === gt.SCALES ? () => activateKey(futureNotes[0].key) : advanceForever;
+
+        // player needs a new key to play!
+        // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
+        let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success)
+            .delay(100).do(clearAllKeys).subscribe( advance, (err) => console.log(err),
+                // on complete (game ended)
+                () => {
+                    console.log('ENDING GAME');
+                    setNoProgress();
+                    dispatcher.trigger('game::over');
+                });
 
 
         let gamePlay = notegen.takeUntil(ender).subscribe( n => futureNotes.push(n) );
 
-        // TODO change MIDDLE_C to be the tonic of the particular key we are in.
-        let startNote = new Note('C', 3, this.key);
-        notegen.onNext(startNote);
-        activateKey(startNote.key); 
-        for(let z=0; z<11; z++) {
-            notegen.onNext(this.generate());
+        if(this.type === gt.SCALES) {
+            let scaleNotes = ['C','D','E','F','G','A','B'].map((n) => new Note(n, 3, self.key));
+            scaleNotes.forEach((n) => notegen.onNext(n));
+            activateKey(scaleNotes[0].key); 
+        } else {
+            // TODO change MIDDLE_C to be the tonic of the particular key we are in.
+            let startNote = new Note('C', 3, this.key);
+            notegen.onNext(startNote);
+            activateKey(startNote.key); 
+            for(let z=0; z<11; z++) {
+                notegen.onNext(this.generate());
+            }
         }
         MusicSheet.renderStaves(playQueue, this.key);
         scoreBoard.text('0');
@@ -303,6 +312,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         dispatcher.trigger('game::cleanup');
         this.presses$.dispose();
         this.releases$.dispose();
+        this.update$.dispose();
     }
 
     // when the app / dom is ready...

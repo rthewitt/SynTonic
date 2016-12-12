@@ -255,12 +255,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 switch(mode) {
                     case gt.FLOW:
                     case gt.STAMINA:
+                    case gt.SCALES:
                         // TODO move instrument midiInput into Keyboard!
                         game = new Games.Game({ 
                             type: mode,
                             keyboard: keyboard,
                             key: currentKeySignature(),
-                            keyHints: true,
+                            keyHints: true, // TODO drop keyhints after first or second relay
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
                         });
