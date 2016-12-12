@@ -178,7 +178,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // requires a game to exist of course
                 dispatcher.on('game::over', (success) => {
-                    displayEndScore(success);
+                    setTimeout( () => displayEndScore(success), 600);
                     onGameStop();
                 });
 

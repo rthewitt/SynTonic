@@ -40,7 +40,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             isModified = false;
 
             // actualy display the accidental if one is present
-            // TODO move keySignatures into keyprops ?
             let acc = self.vexNote.keyProps[i].accidental;
             if(!!acc) self.vexNote.addAccidental(i, new VF.Accidental(acc));
 
@@ -107,6 +106,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
     function updateUIForAttempt(attempt) {
+        console.log('HERE IT IS');
         if(attempt.success) {
             keyboard.successKey(attempt.pressed);
         } else keyboard.failKeyForever(attempt.pressed);
@@ -180,19 +180,16 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
 
         // Update UI!
-        attempts.do(updateUIForAttempt);
+        attempts.do(updateUIForAttempt).subscribe();
 
         let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
 
-        // TODO understand if moving the do(updateUIForAttempt) to attempts above will still work...
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
         let ender = Rx.Observable.merge(
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             gameTimer.do(() => console.log('GAME TIMED OUT...')),
-            // FIXME position
-            //badAttempts.do(() => MusicSheet.renderStaves(playQueue, self.key)),
             badAttempts,
             Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
             ).publish().refCount(); // make it hot
@@ -234,15 +231,9 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             } 
             return pos + tempo;
         }, MusicSheet.startNoteX).subscribe( 
-            p => {
-                console.log('DURING PLAY: '+p);
-                MusicSheet.renderStaves(playQueue, self.key, p);
-            },
+            p => MusicSheet.renderStaves(playQueue, self.key, p),
             err => {},
-            p => { 
-                console.log('ON END: '+X(firstNote()));
-                MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0));
-            }
+            p => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
             );
 
 
@@ -285,8 +276,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // on complete (game ended)
         () => {
             console.log('ENDING GAME');
-            //clearAllKeys();
-            //MusicSheet.renderStaves([], self.key); // this breaks with vex
             setNoProgress();
             dispatcher.trigger('game::over');
         });

@@ -13,6 +13,7 @@ define(['vexflow'], function(Vex) {
     var gameTypes = {
         FLOW: 0, // accuracy, perhaps relay
         STAMINA: 1, // independent timing
+        SCALES: 1, // learn key signatures no movement
         MELODY: 2,
         APT: 3,
         names: ['FLOW', 'STAMINA', 'MELODY', 'APT']
