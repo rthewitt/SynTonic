@@ -1,4 +1,4 @@
-define(function() {
+define(['vexflow'], function(Vex) {
 
     var gameStates = {
         NOT_STARTED: 0,
@@ -18,8 +18,19 @@ define(function() {
         names: ['FLOW', 'STAMINA', 'MELODY', 'APT']
     };
 
+
+    // TODO move this cruft into keyboard, add octave, get rid of octave # mismatch between HTML and vex
+    // FIXME this only allows treble cleff
+    // TODO will this ever work with duration? likely not...
+    function getVexNoteForPianoKey(pKey) {
+        let octave = pKey.id.replace(pKey.note, '');
+        let vexNoteName = pKey.note.replace('s', '#');
+        return new Vex.Flow.StaveNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave)+1)], duration: "q" });
+    }
+
     return {
         gameTypes: gameTypes,
-        gameStates: gameStates
+        gameStates: gameStates,
+        getVexNoteForPianoKey: getVexNoteForPianoKey
     }
 });

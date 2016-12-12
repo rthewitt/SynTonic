@@ -12,6 +12,17 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         scoreBoard, 
         progressBar;
 
+
+    // stub so that our API is not confusing (vexNotes vs Note Notes)
+    // will go away if and when we use "inheritance" - still hesitant on that
+    function badNote(pianoKey) {
+        return {
+            status: 'failure',
+            vexNote: util.getVexNoteForPianoKey(pianoKey),
+            key: null
+        }
+    }
+
      // Note: object to be rendered on staff
      // has pointer to relevant key
      // octave is coerced to string so can be int/string. This allows 00 to match current HTML
@@ -95,7 +106,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         return new Note(noteName, 3, this.key);
     }
 
-
     function updateUIForAttempt(attempt) {
         if(attempt.success) {
             keyboard.successKey(attempt.pressed);
@@ -140,7 +150,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [] };
 
         // conveniences
-        let faultyNotes = playQueue.fautlyNotes,
+        let faultyNotes = playQueue.faultyNotes,
             floatyNotes = playQueue.floatyNotes,
             futureNotes = playQueue.futureNotes;
         
@@ -169,6 +179,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
 
 
+        // Update UI!
+        attempts.do(updateUIForAttempt);
+
+        let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
+
         // TODO understand if moving the do(updateUIForAttempt) to attempts above will still work...
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
@@ -176,9 +191,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             gameTimer.do(() => console.log('GAME TIMED OUT...')),
-            attempts.do(updateUIForAttempt).filter((a) => !a.success), // incorrect key! TODO add blink or extra delay?
+            // FIXME position
+            //badAttempts.do(() => MusicSheet.renderStaves(playQueue, self.key)),
+            badAttempts,
             Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
             ).publish().refCount(); // make it hot
+
+        badAttempts.takeUntil(ender).subscribe((mishap) => faultyNotes.push(mishap));
 
 
         // update scoreBoard
@@ -214,7 +233,17 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 tempo = 0;
             } 
             return pos + tempo;
-        }, MusicSheet.startNoteX) .subscribe( p => MusicSheet.renderStaves(playQueue, self.key, p) );
+        }, MusicSheet.startNoteX).subscribe( 
+            p => {
+                console.log('DURING PLAY: '+p);
+                MusicSheet.renderStaves(playQueue, self.key, p);
+            },
+            err => {},
+            p => { 
+                console.log('ON END: '+X(firstNote()));
+                MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0));
+            }
+            );
 
 
         // TODO move this into settings somewhere
@@ -233,7 +262,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // if we take until ender, there's no warning sound
         this.presses$ = pp$;
         this.releases$ = pr$;
-
 
         // trigger a relay attempt if we make it to 30!
         attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
@@ -282,6 +310,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
+        console.log('cleaning up');
         dispatcher.trigger('game::cleanup');
         this.presses$.dispose();
         this.releases$.dispose();

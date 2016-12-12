@@ -19,9 +19,19 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     const modStyle = { shadowColor: NOTE_COLORS['hint'], shadowBlur: 15 };
     const activeModStyle = Object.assign({}, activeStyle, modStyle);
     const successStyle = { fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] };
+    const failureStyle = { fillStyle: NOTE_COLORS['failure'], strokeStyle: NOTE_COLORS['failure'] };
 
     // vex
     var renderer;
+
+
+
+    // TODO
+    // we will need to expand this to get rest of duration equal to passed in success note
+    // in the near future
+    function getQuarterRest() {
+        return new Vex.Flow.GhostNote({clef: "treble", keys: ["b/4"], duration: "qr" });
+    }
 
 
     function renderStaves(notes, key, pos) {
@@ -77,23 +87,26 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         }
 
+        // we are adding a rest for each success note still displayed to format correctly
+        let faultyVexNotes = notes.faultyNotes.map( n => n.vexNote );
+        faultyVexNotes.forEach( (vn, vi) => vn.setStyle(failureStyle) );
+        if(faultyVexNotes.length) faultyVexNotes = notes.floatyNotes.map(getQuarterRest).concat(faultyVexNotes);
+
+
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        //futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes));
-        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 6));
+        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 6)); // slice to keep justify from squeezing
 
-        /* FIXME success will be same voice as future notes, erors will be overlayed
-        let floatyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
-        floatyVoice.setStrict(false); // remove tick counting, we aren't using measures
-        floatyVoice.addTickables(floatyVexNotes);
-        */
+        let faultyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
+        faultyVoice.setStrict(false); // remove tick counting, we aren't using measures
+        faultyVoice.addTickables(faultyVexNotes);
 
         // we are NOT joining voices, which ONLY handles accidental collision avoidence
         // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
         //let formatter = new VF.Formatter().format([futureVoice, floatyVoice], 700);
-        let formatter = new VF.Formatter().format([futureVoice], 700);
+        let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
         futureVoice.draw(context, stave);
-        //floatyVoice.draw(context, stave);
+        faultyVoice.draw(context, stave);
     }
 
     return {
