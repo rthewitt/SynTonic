@@ -86,6 +86,14 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
 
+    function generateScales() {
+        let scale = util.getScaleForKey(this.key);
+        let self = this;
+        return Rx.Observable.fromArray(scale)
+            .map( n => new Note(n, 3, self.key));
+    }
+
+
     function generateSimple() {
         // TODO figure out note range for treble clef.  Always the same? Start from MIDDLE_C or key tonic?
         // TODO add accidentals via randomness in order to make this the [only/base] case, NEVER if keysig by default
@@ -101,7 +109,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             noteName += Math.random() < 0.5 ? 's' : 'b';
         }
 
-        return new Note(noteName, 3, this.key);
+        return Rx.Observable.just(new Note(noteName, 3, this.key));
     }
 
     function updateUIForAttempt(attempt) {
@@ -119,10 +127,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // TODO change this and all occurences to keysig to avoid ambiguity with Note.key / pianoKey
         this.key = opts.key;
 
-        if(this.type === gt.FLOW) this.streamSpeed = -10;
-        else if(this.type === gt.SCALES) this.streamSpeed = 0;
-        else this.streamSpeed = -7;
-
         this.reward = 1;
         this.penalty = 0;
 
@@ -130,6 +134,23 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let playerPresses = opts.playerPresses,
             playerReleases = opts.playerReleases;
+
+
+        switch(this.type) {
+            case gt.FLOW:
+                this.streamSpeed = -10;
+                this.generate = generateSimple;
+                break;
+            case gt.STAMINA:
+                this.streamSpeed = -7;
+                this.generate = generateSimple;
+                break;
+            case gt.SCALES:
+                this.streamSpeed = 0;
+                this.generate = generateScales;
+                break;
+        }
+
 
         // more concise code
         let kb = keyboard;
@@ -140,17 +161,16 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         clearAllKeys();
 
+
         var self = this;
 
         // "generator" for notes
         var notegen = new Rx.Subject();
 
-        let sourceNotes;
-        if(this.type === gt.SCALES) {
-            let scale = util.getScaleForKey(this.key);
-            sourceNotes = notegen.flatMap( (_) => Rx.Observable.fromArray(scale))
-                .map( n => new Note(n, 3, self.key));
-        } else sourceNotes = notegen;
+        // if we explicitly pass something in, use it
+        // otherwise generate (returns observable)
+        let sourceNotes = notegen.flatMap( (thrust) => 
+                !!thrust ? Rx.Observable.just(thrust) : generate());
 
 
         // state variables (actually several queues)
@@ -197,7 +217,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
             Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             gameTimer.do(() => console.log('GAME TIMED OUT...')),
-            badAttempts,
+            badAttempts.do(() => console.log('BAD ATTEMPT...')),
             Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
             ).publish().refCount(); // make it hot
 
@@ -217,7 +237,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             return X(first) + delta - WidthAndPadding(first);
         }
 
-        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender).scan((pos, tick) => { 
+
+        function advanceStream(pos, tick) {
             let tempo = self.streamSpeed;
 
             if(floatyNotes.length && X(floatyNotes[0]) < (MusicSheet.startNoteX-75)) {
@@ -225,23 +246,43 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 return calcStreamDelta(tempo);
             }
 
+
+            // need state change to do this over and over, can't just
+            // try to move the position because streamSpeed is 0.
+            /*
+            if(self.type === gt.SCALES && floatyNotes.length === 7) {
+                return calcStreamDelta(-20);
+            }
+            */
+
             if(futureNotes[0].status === 'success') {
-                console.log('shift');
                 floatyNotes.push( futureNotes.shift() ); 
                 return calcStreamDelta(tempo);
-            } console.log('no-attempt');
+            }
 
             // WILL THIS WORK WITH SUCCESS?
-            let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - Width(firstNote()) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
-            if(X(futureNotes[0]) <= cutoff) {
-                if(this.type === gt.STAMINA) dispatcher.trigger('key::miss');
+            let cutoff = self.type === gt.STAMINA ? MusicSheet.startNoteX - Width(firstNote()) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
+
+            let fx;
+            try { fx = X(futureNotes[0]); } catch(_) { fx = Infinity; }
+            if(fx <= cutoff) {
+                console.log('ZERO?');
+                if(self.type === gt.STAMINA) dispatcher.trigger('key::miss');
                 tempo = 0;
             } 
+
             return pos + tempo;
-        }, MusicSheet.startNoteX).subscribe( 
-            p => MusicSheet.renderStaves(playQueue, self.key, p),
-            err => {},
-            p => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
+        }
+
+
+        // This is the graphical progress of the sheet music
+        // Think of the sheet music as an ever advancing stream that stops only when it must
+        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender)
+            .scan(advanceStream, MusicSheet.startNoteX)
+            .subscribe( 
+                p => MusicSheet.renderStaves(playQueue, self.key, p),
+                err => console.log('ERROR IN STREAM\n'+err),
+                p => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
             );
 
 
@@ -270,21 +311,21 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
 
         function advanceForever() {
-            if(futureNotes.length < 12) 
-                notegen.onNext(generate())
+            let tooFewNotes;
+            if(self.type === gt.SCALES) {
+                tooFewNotes = 0;
+            } else tooFewNotes = 11;
+
+            //let cutoff = self.type === gt.SCALES ? 0 : 11;
+            if(futureNotes.length <= tooFewNotes) notegen.onNext();
+                //notegen.onNext(generate())
             // advance the keyboard UI
             activateKey(futureNotes[0].key); 
         }
 
-        let advance = this.type === gt.SCALES ? () => {
-            console.log('advancing scales');
-            activateKey(futureNotes[0].key) 
-        } : advanceForever;
-
         // player needs a new key to play!
-        // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
         let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success)
-            .delay(100).do(clearAllKeys).subscribe( advance, (err) => console.log(err),
+            .delay(100).do(clearAllKeys).subscribe( advanceForever, (err) => console.log(err),
                 // on complete (game ended)
                 () => {
                     console.log('ENDING GAME');
@@ -304,7 +345,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             notegen.onNext(startNote);
             activateKey(startNote.key); 
             for(let z=0; z<11; z++) {
-                notegen.onNext(this.generate());
+                //notegen.onNext(this.generate());
+                notegen.onNext();
             }
         }
         MusicSheet.renderStaves(playQueue, this.key);
@@ -312,7 +354,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
     Game.prototype.evaluate = evaluateSimple;
-    Game.prototype.generate = generateSimple;
 
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 

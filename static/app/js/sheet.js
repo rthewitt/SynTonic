@@ -40,6 +40,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         renderStaves(emptyPlayQueue, key);
     }
 
+
     function renderStaves(notes, key, pos) {
 
         if(typeof pos === 'undefined') pos = START_NOTE_X;
@@ -70,7 +71,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         // FIXME note that octave id is not zero based in vexflow (3C vs C/4 for middle c)
         // color the note appropriately (active / modifier hints)
-        let futureVexNotes = notes.futureNotes.slice(0, 6).map( n => n.vexNote );
+        let futureVexNotes = notes.futureNotes.slice(0, 7).map( n => n.vexNote );
         if(futureVexNotes.length) {
             futureVexNotes.forEach( (vn,vi) => {
                 if(vi === 0) vn.setStyle(activeStyle);
@@ -101,7 +102,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 6)); // slice to keep justify from squeezing
+        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 7)); // slice to keep justify from squeezing
 
         let faultyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         faultyVoice.setStrict(false); // remove tick counting, we aren't using measures
