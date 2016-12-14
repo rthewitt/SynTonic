@@ -19,6 +19,10 @@ define(['vexflow'], function(Vex) {
         names: ['FLOW', 'STAMINA', 'SCALES', 'MELODY', 'APT']
     };
 
+    function getScaleForKey(keysig) {
+        // TODO only works for C Major
+        return ['C','D','E','F','G','A','B'];
+    }
 
     // TODO move this cruft into keyboard, add octave, get rid of octave # mismatch between HTML and vex
     // FIXME this only allows treble cleff
@@ -32,6 +36,7 @@ define(['vexflow'], function(Vex) {
     return {
         gameTypes: gameTypes,
         gameStates: gameStates,
+        getScaleForKey: getScaleForKey,
         getVexNoteForPianoKey: getVexNoteForPianoKey
     }
 });

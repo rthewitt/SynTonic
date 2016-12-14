@@ -1,4 +1,3 @@
-// FIXME pressing a button rapidly can give two points
 define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, Rx, Vex, MusicSheet, dispatcher, util) {
 
     const MODIFIED_NOTES = {
@@ -146,6 +145,14 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // "generator" for notes
         var notegen = new Rx.Subject();
 
+        let sourceNotes;
+        if(this.type === gt.SCALES) {
+            let scale = util.getScaleForKey(this.key);
+            sourceNotes = notegen.flatMap( (_) => Rx.Observable.fromArray(scale))
+                .map( n => new Note(n, 3, self.key));
+        } else sourceNotes = notegen;
+
+
         // state variables (actually several queues)
         var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [] };
 
@@ -219,9 +226,10 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             }
 
             if(futureNotes[0].status === 'success') {
+                console.log('shift');
                 floatyNotes.push( futureNotes.shift() ); 
                 return calcStreamDelta(tempo);
-            }
+            } console.log('no-attempt');
 
             // WILL THIS WORK WITH SUCCESS?
             let cutoff = this.type === gt.STAMINA ? MusicSheet.startNoteX - Width(firstNote()) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
@@ -268,7 +276,10 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             activateKey(futureNotes[0].key); 
         }
 
-        let advance = this.type === gt.SCALES ? () => activateKey(futureNotes[0].key) : advanceForever;
+        let advance = this.type === gt.SCALES ? () => {
+            console.log('advancing scales');
+            activateKey(futureNotes[0].key) 
+        } : advanceForever;
 
         // player needs a new key to play!
         // instead of advancing the sheet music, we think of the sheet music as an ever advancing stream that stops only when it must
@@ -282,12 +293,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 });
 
 
-        let gamePlay = notegen.takeUntil(ender).subscribe( n => futureNotes.push(n) );
+        let gamePlay = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
 
         if(this.type === gt.SCALES) {
-            let scaleNotes = ['C','D','E','F','G','A','B'].map((n) => new Note(n, 3, self.key));
-            scaleNotes.forEach((n) => notegen.onNext(n));
-            activateKey(scaleNotes[0].key); 
+            notegen.onNext();
+            activateKey(futureNotes[0].key); 
         } else {
             // TODO change MIDDLE_C to be the tonic of the particular key we are in.
             let startNote = new Note('C', 3, this.key);
