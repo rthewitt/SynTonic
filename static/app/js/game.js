@@ -247,15 +247,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             }
 
 
-            // need state change to do this over and over, can't just
-            // try to move the position because streamSpeed is 0.
-            /*
+            // setting streamSpeed looked cool, but state change and unecessary
+            // distraction from actually playing the scales.
             if(self.type === gt.SCALES && floatyNotes.length === 7) {
-                return calcStreamDelta(-20);
+                for(let c=0; c<7; c++) floatyNotes.shift();
             }
-            */
 
-            if(futureNotes[0].status === 'success') {
+            if(futureNotes[0] && futureNotes[0].status === 'success') {
                 floatyNotes.push( futureNotes.shift() ); 
                 return calcStreamDelta(tempo);
             }
@@ -345,7 +343,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             notegen.onNext(startNote);
             activateKey(startNote.key); 
             for(let z=0; z<11; z++) {
-                //notegen.onNext(this.generate());
                 notegen.onNext();
             }
         }
