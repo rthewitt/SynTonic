@@ -133,7 +133,6 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     
 
     Keyboard.prototype.playNote = function(key, duration) {
-        console.log('should we midi? '+this.output);
         if(this.output) {
             console.log('MIDI OUTPUT');
             var midiNote = this.keys.indexOf(key)+this.min; // needs wrapper function
@@ -151,7 +150,6 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
     // These notes are played simultaneously (WARNING: approximate!!)
     Keyboard.prototype.playNotes = function(keys, duration) {
-        console.log('should we midi? '+this.output);
         if(this.output) {
             var self = this;
             _.each(keys, function(key) {

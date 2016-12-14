@@ -80,7 +80,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
-        console.log('EVAL');
         let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
@@ -107,7 +106,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
     function updateUIForAttempt(attempt) {
-        console.log('Update UI');
         if(attempt.success) {
             keyboard.successKey(attempt.pressed);
         } else keyboard.failKeyForever(attempt.pressed);
