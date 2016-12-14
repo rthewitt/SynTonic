@@ -28,7 +28,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     function Note(noteName, octave, keysig) {
         let VF = Vex.Flow;
         this.status = null;
-        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/4'], duration: 'q', auto_stem: true });
+        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/'+(octave+1)], duration: 'q', auto_stem: true });
 
         let keySpec = !!keysig ? VF.keySignature.keySpecs[keysig] : null;
 
@@ -89,8 +89,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     function generateScales() {
         let scale = util.getScaleForKey(this.key);
         let self = this;
-        return Rx.Observable.fromArray(scale)
-            .map( n => new Note(n, 3, self.key));
+        return Rx.Observable.fromArray(scale.concat(scale.slice().reverse()))
+            .map( n_o  => new Note(n_o[0], n_o[1], self.key));
     }
 
 
@@ -249,8 +249,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
             // setting streamSpeed looked cool, but state change and unecessary
             // distraction from actually playing the scales.
-            if(self.type === gt.SCALES && floatyNotes.length === 7) {
-                for(let c=0; c<7; c++) floatyNotes.shift();
+            if(self.type === gt.SCALES && floatyNotes.length === 8) {
+                for(let c=0; c<8; c++) floatyNotes.shift();
             }
 
             if(futureNotes[0] && futureNotes[0].status === 'success') {

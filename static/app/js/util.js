@@ -21,7 +21,7 @@ define(['vexflow'], function(Vex) {
 
     function getScaleForKey(keysig) {
         // TODO only works for C Major
-        return ['C','D','E','F','G','A','B'];
+        return [['C',3],['D',3],['E',3],['F',3],['G',3],['A',3],['B',3], ['C',4]];
     }
 
     // TODO move this cruft into keyboard, add octave, get rid of octave # mismatch between HTML and vex
