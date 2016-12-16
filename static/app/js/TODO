@@ -1,2 +1,19 @@
 Great video on fingering for scales, very helpful
 https://www.youtube.com/watch?v=8rb2JHTQAHM
+
+scaleSelacs move has been temporarily set to scaleSSelacs
+This is because 8 notes on UI leaves the tonic of the next note and each shifts by one
+it's ugly and confusing
+
+Three options:
+1) Leave as is, but add rest to the end
+ - this is hard because I don't know how to handle the rest in animation
+ - I also don't like the hard cut going from ascending to descending...
+
+2) Revert to flow/stamina behavior for this mode (maybe with ascending scales being separate) -- and replace the old slice for max notes
+ - this requires removing the (if floatyNotes.length === 8) shift behavior
+
+3) Somehow figure out how to illustrate ascending and then descending, probably with colors in two stages?
+ - maybe black to green to black, will illustrate "undoing" the scale
+ - this has the benfit of setting us up for the next scale without apparent shift
+

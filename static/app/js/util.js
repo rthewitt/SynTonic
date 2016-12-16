@@ -41,10 +41,10 @@ define(['vexflow'], function(Vex) {
             [ 3,   3,   3,   4,   4,   4,   4 ]);
 
     // return ascending + descending scale, 
-    // with tonic of higher order used only once
+    // with tonic of higher order used only once // FIXME this is temporarily FALSE
     function mirrorScale(scale) {
         let capNote = [scale[0][0], (scale[0][1]+1)];
-        let Selacs = [ capNote ].concat(scale.slice().reverse());
+        let Selacs = [ capNote, capNote ].concat(scale.slice().reverse());
         return scale.slice().concat(Selacs);
     }
 
