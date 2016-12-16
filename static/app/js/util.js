@@ -19,9 +19,43 @@ define(['vexflow'], function(Vex) {
         names: ['FLOW', 'STAMINA', 'SCALES', 'MELODY', 'APT']
     };
 
+
+    var notesInOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+
+    let notesForScale = new Array(
+            ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
+            ['B', 'C', 'D', 'E', 'F', 'G', 'A'],
+            ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+            ['D', 'E', 'F', 'G', 'A', 'B', 'C'],
+            ['E', 'F', 'G', 'A', 'B', 'C', 'D'],
+            ['F', 'G', 'A', 'B', 'C', 'D', 'E'],
+            ['G', 'A', 'B', 'C', 'D', 'E', 'F']);
+
+    let octavesForScale = new Array(
+            [ 2,   2,   3,   3,   3,   3,   3 ],
+            [ 2,   3,   3,   3,   3,   3,   3 ],
+            [ 3,   3,   3,   3,   3,   3,   3 ],
+            [ 3,   3,   3,   3,   3,   3,   4 ],
+            [ 3,   3,   3,   3,   3,   4,   4 ],
+            [ 3,   3,   3,   3,   4,   4,   4 ],
+            [ 3,   3,   3,   4,   4,   4,   4 ]);
+
+    // return ascending + descending scale, 
+    // with tonic of higher order used only once
+    function mirrorScale(scale) {
+        let capNote = [scale[0][0], (scale[0][1]+1)];
+        let Selacs = [ capNote ].concat(scale.slice().reverse());
+        return scale.slice().concat(Selacs);
+    }
+
+
+    // no stupid logic, relatively straightforward
     function getScaleForKey(keysig) {
-        // TODO only works for C Major
-        return [['C',3],['D',3],['E',3],['F',3],['G',3],['A',3],['B',3], ['C',4]];
+        let tonic = keysig[0], // letter from string (tonic)
+            tonicIdx = notesInOrder.indexOf(tonic),
+            notes = notesForScale[tonicIdx],
+            octaves = octavesForScale[tonicIdx];
+        return notes.map( (note, idx) => [ note, octaves[idx] ] );
     }
 
     // TODO move this cruft into keyboard, add octave, get rid of octave # mismatch between HTML and vex
@@ -36,6 +70,7 @@ define(['vexflow'], function(Vex) {
     return {
         gameTypes: gameTypes,
         gameStates: gameStates,
+        mirrorScale: mirrorScale,
         getScaleForKey: getScaleForKey,
         getVexNoteForPianoKey: getVexNoteForPianoKey
     }

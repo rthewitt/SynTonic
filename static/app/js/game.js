@@ -86,10 +86,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
 
+    // TODO get this once, not every single time
+    // benefit is that I could cycle scales as I go
     function generateScales() {
         let scale = util.getScaleForKey(this.key);
+        let scaleSelacs = util.mirrorScale(scale);
         let self = this;
-        return Rx.Observable.fromArray(scale.concat(scale.slice().reverse()))
+        return Rx.Observable.fromArray(scaleSelacs) 
             .map( n_o  => new Note(n_o[0], n_o[1], self.key));
     }
 
@@ -339,7 +342,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             activateKey(futureNotes[0].key); 
         } else {
             // TODO change MIDDLE_C to be the tonic of the particular key we are in.
-            let startNote = new Note('C', 3, this.key);
+            // FIXME get second opinion on this as usable
+            // For instance, we'll want to determine the range of keys that we may wish to draw from
+            // tonic to next octave?
+            let n = this.key[0],
+                o = kb.noteNames.indexOf(n) < 2 ? 2: 3,
+                startNote = new Note(n, o, this.key);
+
             notegen.onNext(startNote);
             activateKey(startNote.key); 
             for(let z=0; z<11; z++) {
