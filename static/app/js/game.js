@@ -170,11 +170,16 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // "generator" for notes
         var notegen = new Rx.Subject();
 
-        // if we explicitly pass something in, use it
-        // otherwise generate (returns observable)
-        let sourceNotes = notegen.flatMap( (thrust) => 
-                !!thrust ? Rx.Observable.just(thrust) : generate());
-
+        let sourceNotes = notegen.flatMap( (thrust) => {
+            if(!thrust) return generate();
+            if(thrust instanceof Note) return Rx.Observable.just(thrust);
+            let requested = [], n=thrust;
+            if(typeof thrust === 'number') {
+                for(let i=0; i<n; i++) requested.push(generate());
+                return requested[0].merge.apply(requested.slice(1));
+            }
+            throw Exception('Cannot generate from thrusted value='+thrust+'of type '+(typeof thrust));
+        });
 
         // state variables (actually several queues)
         var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [] };
@@ -337,24 +342,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let gamePlay = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
 
-        if(this.type === gt.SCALES) {
-            notegen.onNext();
-            activateKey(futureNotes[0].key); 
-        } else {
-            // TODO change MIDDLE_C to be the tonic of the particular key we are in.
-            // FIXME get second opinion on this as usable
-            // For instance, we'll want to determine the range of keys that we may wish to draw from
-            // tonic to next octave?
-            let n = this.key[0],
-                o = kb.noteNames.indexOf(n) < 2 ? 2: 3,
-                startNote = new Note(n, o, this.key);
+        let tonic = util.getScaleForKey(this.key)[0],
+            startNote = new Note(tonic[0], tonic[1], this.key);
 
-            notegen.onNext(startNote);
-            activateKey(startNote.key); 
-            for(let z=0; z<11; z++) {
-                notegen.onNext();
-            }
-        }
+        notegen.onNext(this.type === gt.SCALES ? undefined : startNote);
+        activateKey(startNote.key);
+        if(this.type !== gt.SCALES) notegen.onNext(11);
+
         MusicSheet.renderStaves(playQueue, this.key);
         scoreBoard.text('0');
     }
