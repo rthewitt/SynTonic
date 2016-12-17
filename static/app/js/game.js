@@ -388,7 +388,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let gamePlay = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
 
-        let tonic = util.getScaleForKey(this.key)[0],
+        let tonic = this.key ? util.getScaleForKey(this.key)[0] : ['C', 3],
             startNote = new Note(tonic[0], tonic[1], this.key);
 
         notegen.onNext(this.type === gt.SCALES ? undefined : startNote);

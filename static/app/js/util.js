@@ -51,6 +51,7 @@ define(['vexflow'], function(Vex) {
 
     // no stupid logic, relatively straightforward
     function getScaleForKey(keysig) {
+        if(!keysig) throw "NOT IMPLEMENTED";
         let tonic = keysig[0], // letter from string (tonic)
             tonicIdx = notesInOrder.indexOf(tonic),
             notes = notesForScale[tonicIdx],
