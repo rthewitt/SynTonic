@@ -102,6 +102,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     // benefit is that I could cycle scales as I go
     function generateScales() {
         let scale = util.getScaleForKey(this.key);
+        var self = this;
         return Rx.Observable.fromArray(scale) 
             .map( n_o  => new Note(n_o[0], n_o[1], self.key)).do( n => {
                 n.vexNote.keyProps.forEach( k=> {
