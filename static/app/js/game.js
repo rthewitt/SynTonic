@@ -1,4 +1,3 @@
-// TODO add ghostnotes after, or invisible rests to the end of floatyNotes during reverse scale
 define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, Rx, Vex, MusicSheet, dispatcher, util) {
 
     const MODIFIED_NOTES = {
@@ -98,6 +97,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
 
+    // TODO merge these generate functions, nearly identtical now
     // TODO get this once, not every single time
     // benefit is that I could cycle scales as I go
     function generateScales() {
@@ -112,22 +112,23 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
 
+    // TODO get this once, not every single time
+    // benefit is that I could cycle scales as I go
     function generateSimple() {
-        // TODO figure out note range for treble clef.  Always the same? Start from MIDDLE_C or key tonic?
-        // TODO add accidentals via randomness in order to make this the [only/base] case, NEVER if keysig by default
-        // could just be a global setting [ restrict sharp/flat while playing in key ]
-        // also don't forget: consider mode where we IMITATE a key by only using those accidentals. - what mechanic though?
+        // consider mode where we IMITATE a key by only using those accidentals. - what mechanic though?
+        let scale = util.getScaleForKey(this.key ? this.key : 'C'); // C3-C4 when playing "All Notes"
         let min = 0,
-            max = keyboard.noteNames.length-1, // should be 6 (7 notes)
+            max = scale.length-1, // should be 6 (7 notes)
             n = Math.floor( Math.random() * ((max+1)-min) ) + min; // those parens are necessary!
-            noteName = keyboard.noteNames[n];
+            noteName = scale[n][0],
+            octave = scale[n][1];
 
         // All notes are fair game if no keysig
         if(!this.key && Math.random() < 0.5) {
             noteName += Math.random() < 0.5 ? 's' : 'b';
         }
 
-        return Rx.Observable.just(new Note(noteName, 3, this.key));
+        return Rx.Observable.just(new Note(noteName, octave, this.key));
     }
 
     function updateUIForAttempt(attempt) {
@@ -271,17 +272,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 floatyNotes.shift();
                 return calcStreamDelta(tempo);
             }
-
-
-            // setting streamSpeed looked cool, but state change and unecessary
-            // distraction from actually playing the scales.
-            // TODO FIXME verify that this should be removed,
-            // now that I'm relying on reverse movement of note activation in advanceForever
-            /*
-            if(self.type === gt.SCALES && floatyNotes.length === 8) {
-                for(let c=0; c<8; c++) floatyNotes.shift();
-            }
-            */
 
             if(futureNotes[0] && futureNotes[0].status === 'success') {
                 floatyNotes.push( futureNotes.shift() ); 
