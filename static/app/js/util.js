@@ -66,12 +66,18 @@ define(['vexflow'], function(Vex) {
         let vexNoteName = pKey.note.replace('s', '#');
         return new Vex.Flow.StaveNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave)+1)], duration: "q" });
     }
+    function getGhostNoteForPianoKey(pKey) {
+        let octave = pKey.id.replace(pKey.note, '');
+        let vexNoteName = pKey.note.replace('s', '#');
+        return new Vex.Flow.GhostNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave)+1)], duration: "q" });
+    }
 
     return {
         gameTypes: gameTypes,
         gameStates: gameStates,
         mirrorScale: mirrorScale,
         getScaleForKey: getScaleForKey,
-        getVexNoteForPianoKey: getVexNoteForPianoKey
+        getVexNoteForPianoKey: getVexNoteForPianoKey,
+        getGhostNoteForPianoKey: getGhostNoteForPianoKey
     }
 });

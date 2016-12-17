@@ -15,10 +15,21 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // stub so that our API is not confusing (vexNotes vs Note Notes)
     // will go away if and when we use "inheritance" - still hesitant on that
-    function badNote(pianoKey) {
+    function stubNote(pianoKey, flavor) {
         return {
-            status: 'failure',
+            status: flavor,
             vexNote: util.getVexNoteForPianoKey(pianoKey),
+            key: null
+        }
+    }
+    var badNote = (p) => stubNote(p, 'failure');
+    var successNote = (p) => stubNote(p, 'success');
+
+    // fake note for padding, should be in sheet / graphics
+    function phantomNote(pianoKey) {
+        return {
+            status: 'ghost',
+            vexNote: util.getGhostNoteForPianoKey(pianoKey),
             key: null
         }
     }
@@ -189,12 +200,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         });
 
         // state variables (actually several queues)
-        var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [] };
+        var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [], fluffyNotes: []};
 
         // conveniences
         let faultyNotes = playQueue.faultyNotes,
             floatyNotes = playQueue.floatyNotes,
-            futureNotes = playQueue.futureNotes;
+            futureNotes = playQueue.futureNotes,
+            fluffyNotes = playQueue.fluffyNotes; // padding justification in modes with no movement
         
 
         let firstNote = () => floatyNotes.length ? floatyNotes[0] : futureNotes[0];
@@ -342,11 +354,27 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 if(futureNotes.length) {
                     if(futureNotes.length > 1) floatyNotes.push(futureNotes.shift()) // normal operation
                     else if(futureNotes.length === 1) {
-                        if(floatyNotes.length == 7) futureNotes.pop(); // do not play capNote twice
+                        if(floatyNotes.length == 6) {
+                            // uncolor, this is ugly
+                            floatyNotes.forEach(n => {
+                                n.vexNote.keyProps.forEach( k => { k.reverse = true });
+                                //vn.keyProps.forEach(k => { k.reverse = true; });
+                            });
+                        }
+
                         // this happens even if we popped the capNote!!
-                        futureNotes.pop(); // discard played note (maybe animate in the future)
+                        let justPlayed = futureNotes.pop(); // discard played note (maybe animate in the future)
+                        fluffyNotes.unshift(successNote(justPlayed.key));
+
                         if(floatyNotes.length) futureNotes.unshift(floatyNotes.pop()) // activate in reverse
-                        else notegen.onNext(); // we are out of notes to play, get another scale
+                        else {
+                            // clear out padding notes
+                            let pl = fluffyNotes.length; // we are mutating the list
+                            for(let pi=0; pi<pl; pi++) {
+                                fluffyNotes.pop();
+                            }
+                            notegen.onNext(); // we are out of notes to play, get another scale
+                        }
                     }
                 }
 

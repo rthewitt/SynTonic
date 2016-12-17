@@ -20,6 +20,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     const activeModStyle = Object.assign({}, activeStyle, modStyle);
     const successStyle = { fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] };
     const failureStyle = { fillStyle: NOTE_COLORS['failure'], strokeStyle: NOTE_COLORS['failure'] };
+    const noStyle = { fillStyle: 'black', strokeStyle: 'black'};
 
     // vex
     var renderer;
@@ -35,7 +36,8 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         let emptyPlayQueue = {
             floatyNotes: [],
             faultyNotes: [],
-            futureNotes: []
+            futureNotes: [],
+            fluffyNotes: [] // phantom, right-justification for reverse ATM
         };
         renderStaves(emptyPlayQueue, key);
     }
@@ -89,7 +91,9 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
                 // TODO consider how chords will be done - likely
                 // we will have to loop on note.keys first and
                 // set style as aggregate if we want to show red/green
-                vn.setStyle(successStyle);
+                if(!vn.keyProps.some(k => !!k.reverse)) 
+                    vn.setStyle(successStyle);
+                else vn.setStyle(noStyle);
             });
 
         }
@@ -99,10 +103,12 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         faultyVexNotes.forEach( (vn, vi) => vn.setStyle(failureStyle) );
         if(faultyVexNotes.length) faultyVexNotes = notes.floatyNotes.map(getQuarterRest).concat(faultyVexNotes);
 
+        let phantomVexNotes = notes.fluffyNotes.map( n => n.vexNote ); // padding
+        phantomVexNotes.forEach((vn) => vn.setStyle(successStyle));
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).slice(0, 8)); // slice to keep justify from squeezing
+        futureVoice.addTickables(floatyVexNotes.concat(futureVexNotes).concat(phantomVexNotes).slice(0, 8)); // slice to keep justify from squeezing
 
         let faultyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         faultyVoice.setStrict(false); // remove tick counting, we aren't using measures
