@@ -355,7 +355,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                     else if(futureNotes.length === 1) {
                         // use if(floatyNotes.length === 7) to target the switch
                         let justPlayed = futureNotes.pop(); // discard played note (maybe animate in the future)
-                        fluffyNotes.unshift(successNote(justPlayed.key));
+                        fluffyNotes.unshift(justPlayed);
 
                         if(floatyNotes.length) futureNotes.unshift(floatyNotes.pop()) // activate in reverse
                         else {

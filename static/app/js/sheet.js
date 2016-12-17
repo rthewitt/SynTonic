@@ -21,6 +21,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
     const successStyle = { fillStyle: NOTE_COLORS['success'], strokeStyle: NOTE_COLORS['success'] };
     const failureStyle = { fillStyle: NOTE_COLORS['failure'], strokeStyle: NOTE_COLORS['failure'] };
     const noStyle = { fillStyle: 'black', strokeStyle: 'black'};
+    const modNoStyle = Object.assign({}, noStyle, modStyle);
 
     // vex
     var renderer;
@@ -88,14 +89,15 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         let floatyVexNotes = notes.floatyNotes.map( n => n.vexNote );
         if(floatyVexNotes.length) {
             floatyVexNotes.forEach( (vn, vi) => {
-                // TODO consider how chords will be done - likely
-                // we will have to loop on note.keys first and
-                // set style as aggregate if we want to show red/green
-                if(!vn.keyProps.some(k => !!k.noStyle)) {
-                    vn.setStyle(successStyle);
-                } else vn.setStyle(noStyle);
+                if(vn.keyProps.some(k => !!k.noStyle)) { // likely playing scales
+                    vn.setStyle( noStyle );
+                    vn.keyProps.forEach( (n, i) => {
+                        if(n.signatureKeyHint) {
+                            vn.setKeyStyle(i, modStyle);
+                        }
+                    });
+                } else vn.setStyle(successStyle); // normal case
             });
-
         }
 
         // we are adding a rest for each success note still displayed to format correctly
@@ -104,7 +106,16 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         if(faultyVexNotes.length) faultyVexNotes = notes.floatyNotes.map(getQuarterRest).concat(faultyVexNotes);
 
         let phantomVexNotes = notes.fluffyNotes.map( n => n.vexNote ); // padding
-        //phantomVexNotes.forEach((vn) => vn.setStyle(successStyle));
+        if(phantomVexNotes.length) {
+            phantomVexNotes.forEach( (vn, vi) => {
+                vn.setStyle( noStyle );
+                vn.keyProps.forEach( (n, i) => {
+                    if(n.signatureKeyHint) {
+                        vn.setKeyStyle(i, modStyle);
+                    }
+                });
+            });
+        }
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
