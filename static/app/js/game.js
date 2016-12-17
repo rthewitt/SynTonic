@@ -1,3 +1,4 @@
+// TODO add ghostnotes after, or invisible rests to the end of floatyNotes during reverse scale
 define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, Rx, Vex, MusicSheet, dispatcher, util) {
 
     const MODIFIED_NOTES = {
@@ -90,10 +91,14 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     // benefit is that I could cycle scales as I go
     function generateScales() {
         let scale = util.getScaleForKey(this.key);
+        return Rx.Observable.fromArray(scale) 
+            .map( n_o  => new Note(n_o[0], n_o[1], self.key));
+        /*
         let scaleSelacs = util.mirrorScale(scale);
         let self = this;
         return Rx.Observable.fromArray(scaleSelacs) 
             .map( n_o  => new Note(n_o[0], n_o[1], self.key));
+            */
     }
 
 
@@ -170,6 +175,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // "generator" for notes
         var notegen = new Rx.Subject();
 
+        // TODO create simple function API so that we don't require
+        // domain knowledge elsewhere in the code to take advantage of this
         let sourceNotes = notegen.flatMap( (thrust) => {
             if(!thrust) return generate();
             if(thrust instanceof Note) return Rx.Observable.just(thrust);
@@ -257,9 +264,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
             // setting streamSpeed looked cool, but state change and unecessary
             // distraction from actually playing the scales.
+            // TODO FIXME verify that this should be removed,
+            // now that I'm relying on reverse movement of note activation in advanceForever
+            /*
             if(self.type === gt.SCALES && floatyNotes.length === 8) {
                 for(let c=0; c<8; c++) floatyNotes.shift();
             }
+            */
 
             if(futureNotes[0] && futureNotes[0].status === 'success') {
                 floatyNotes.push( futureNotes.shift() ); 
@@ -311,19 +322,35 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         // trigger a relay attempt if we make it to 30!
         attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
-            futureNotes[0].status = 'success';
+            // TODO evaluate this decision to have three different points for change
+            // relay could be in advanceForever, and this success property literally just
+            // passes the buck to advanceStram (for graphics).
+            // there is a false dichotomy right now regarding array pop/shift for graphics
+            // and for gameplay.  advanceStream should only be for rendering if possible
+            // FIXME hack because scales uses the above justification to do logic in advanceForever
+            if(self.type !== gt.SCALES) futureNotes[0].status = 'success';
+            //futureNotes[0].status = 'success';
             if(n % 30 === 0) dispatcher.trigger('game::relay');
         });
 
 
         function advanceForever() {
             let tooFewNotes;
-            if(self.type === gt.SCALES) {
-                tooFewNotes = 0;
-            } else tooFewNotes = 11;
 
-            //let cutoff = self.type === gt.SCALES ? 0 : 11;
-            if(futureNotes.length <= tooFewNotes) notegen.onNext();
+            if(self.type === gt.SCALES) {
+
+                if(futureNotes.length) {
+                    if(futureNotes.length > 1) floatyNotes.push(futureNotes.shift()) // normal operation
+                    else if(futureNotes.length === 1) {
+                        if(floatyNotes.length == 7) futureNotes.pop(); // do not play capNote twice
+                        // this happens even if we popped the capNote!!
+                        futureNotes.pop(); // discard played note (maybe animate in the future)
+                        if(floatyNotes.length) futureNotes.unshift(floatyNotes.pop()) // activate in reverse
+                        else notegen.onNext(); // we are out of notes to play, get another scale
+                    }
+                }
+
+            } else if(futureNotes.length <= 11) notegen.onNext();
                 //notegen.onNext(generate())
             // advance the keyboard UI
             activateKey(futureNotes[0].key); 
