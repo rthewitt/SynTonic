@@ -23,22 +23,22 @@ define(['vexflow'], function(Vex) {
     var notesInOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
     let notesForScale = new Array(
-            ['A', 'B', 'C', 'D', 'E', 'F', 'G'],
-            ['B', 'C', 'D', 'E', 'F', 'G', 'A'],
-            ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
-            ['D', 'E', 'F', 'G', 'A', 'B', 'C'],
-            ['E', 'F', 'G', 'A', 'B', 'C', 'D'],
-            ['F', 'G', 'A', 'B', 'C', 'D', 'E'],
-            ['G', 'A', 'B', 'C', 'D', 'E', 'F']);
+            ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'A'],
+            ['B', 'C', 'D', 'E', 'F', 'G', 'A', 'B'],
+            ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'],
+            ['D', 'E', 'F', 'G', 'A', 'B', 'C', 'D'],
+            ['E', 'F', 'G', 'A', 'B', 'C', 'D', 'E'],
+            ['F', 'G', 'A', 'B', 'C', 'D', 'E', 'F'],
+            ['G', 'A', 'B', 'C', 'D', 'E', 'F', 'G']);
 
     let octavesForScale = new Array(
-            [ 2,   2,   3,   3,   3,   3,   3 ],
-            [ 2,   3,   3,   3,   3,   3,   3 ],
-            [ 3,   3,   3,   3,   3,   3,   3 ],
-            [ 3,   3,   3,   3,   3,   3,   4 ],
-            [ 3,   3,   3,   3,   3,   4,   4 ],
-            [ 3,   3,   3,   3,   4,   4,   4 ],
-            [ 3,   3,   3,   4,   4,   4,   4 ]);
+            [ 2,   2,   3,   3,   3,   3,   3,   3 ],
+            [ 2,   3,   3,   3,   3,   3,   3,   3 ],
+            [ 3,   3,   3,   3,   3,   3,   3,   4 ],
+            [ 3,   3,   3,   3,   3,   3,   4,   4 ],
+            [ 3,   3,   3,   3,   3,   4,   4,   4 ],
+            [ 3,   3,   3,   3,   4,   4,   4,   4 ],
+            [ 3,   3,   3,   4,   4,   4,   4,   4 ]);
 
     // return ascending + descending scale, 
     // with tonic of higher order used only once // FIXME this is temporarily FALSE

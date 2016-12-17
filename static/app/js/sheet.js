@@ -91,9 +91,9 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
                 // TODO consider how chords will be done - likely
                 // we will have to loop on note.keys first and
                 // set style as aggregate if we want to show red/green
-                if(!vn.keyProps.some(k => !!k.reverse)) 
+                if(!vn.keyProps.some(k => !!k.noStyle)) {
                     vn.setStyle(successStyle);
-                else vn.setStyle(noStyle);
+                } else vn.setStyle(noStyle);
             });
 
         }
@@ -104,7 +104,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         if(faultyVexNotes.length) faultyVexNotes = notes.floatyNotes.map(getQuarterRest).concat(faultyVexNotes);
 
         let phantomVexNotes = notes.fluffyNotes.map( n => n.vexNote ); // padding
-        phantomVexNotes.forEach((vn) => vn.setStyle(successStyle));
+        //phantomVexNotes.forEach((vn) => vn.setStyle(successStyle));
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures

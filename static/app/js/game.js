@@ -103,13 +103,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     function generateScales() {
         let scale = util.getScaleForKey(this.key);
         return Rx.Observable.fromArray(scale) 
-            .map( n_o  => new Note(n_o[0], n_o[1], self.key));
-        /*
-        let scaleSelacs = util.mirrorScale(scale);
-        let self = this;
-        return Rx.Observable.fromArray(scaleSelacs) 
-            .map( n_o  => new Note(n_o[0], n_o[1], self.key));
-            */
+            .map( n_o  => new Note(n_o[0], n_o[1], self.key)).do( n => {
+                n.vexNote.keyProps.forEach( k=> {
+                    k.noStyle = true;
+                });
+            });
     }
 
 
@@ -354,15 +352,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 if(futureNotes.length) {
                     if(futureNotes.length > 1) floatyNotes.push(futureNotes.shift()) // normal operation
                     else if(futureNotes.length === 1) {
-                        if(floatyNotes.length == 6) {
-                            // uncolor, this is ugly
-                            floatyNotes.forEach(n => {
-                                n.vexNote.keyProps.forEach( k => { k.reverse = true });
-                                //vn.keyProps.forEach(k => { k.reverse = true; });
-                            });
-                        }
-
-                        // this happens even if we popped the capNote!!
+                        // use if(floatyNotes.length === 7) to target the switch
                         let justPlayed = futureNotes.pop(); // discard played note (maybe animate in the future)
                         fluffyNotes.unshift(successNote(justPlayed.key));
 
