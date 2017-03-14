@@ -73,6 +73,36 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
 
             function setupInputHandlers() {
+                
+                let qkeys = {
+                    'a': 'A',
+                    'b': 'B',
+                    'c': 'C',
+                    'd': 'D',
+                    'e': 'E',
+                    'f': 'F',
+                    'g': 'G',
+                    'shift+a': 'As',
+                    'shift+b': 'Bs',
+                    'shift+c': 'Cs',
+                    'shift+d': 'Ds',
+                    'shift+e': 'Es',
+                    'shift+f': 'Fs',
+                    'shift+g': 'Gs',
+                    'ctrl+a': 'Ab',
+                    'ctrl+b': 'Bb',
+                    'ctrl+c': 'Cb',
+                    'ctrl+d': 'Db',
+                    'ctrl+e': 'Eb',
+                    'ctrl+f': 'Fb',
+                    'ctrl+g': 'Gb'
+                };
+                for(let combo in qkeys) MouseTrap.bind(combo, 
+                        () => dispatcher.trigger('qwerty', qkeys[combo]));
+
+                //  we may have problems here
+                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => ({ id: null, note: noteName, qwerty: true }));
+
                 // TODO move this into keyboard
                 let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
                 let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
@@ -82,10 +112,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
                     let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
 
-                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns);
+                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses);
                     playerReleases = Rx.Observable.merge(mouseKeyUps, midiKeyUps);
                 } else {
-                    playerPresses = mouseKeyDowns;
+                    playerPresses = Rx.Observable.merge(mouseKeyDowns, qwertyPresses);
                     playerReleases = mouseKeyUps;
                 }
             }

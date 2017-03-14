@@ -127,6 +127,19 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     }
 
 
+    Keyboard.prototype.isSameNote = function(k1, k2) {
+        k1 = k1.note, k2 = k2.note;
+        if(k1 == k2) return true;
+        for(let k in keyAliases) {
+            for(let kprime of keyAliases[k]) {
+                if((k1 == k && k2 == kprime) 
+                        || (k2 == k && k1 == kprime))
+                    return true
+            }
+        }
+        return false;
+    }
+
     // ===================
     // MIDI Functions
     // ===================

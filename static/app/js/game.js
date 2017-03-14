@@ -90,6 +90,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
+        //let success = !attempt.pressed.qwerty ? attempt.target === attempt.pressed :
+         //   keyboard.isSameNote(attempt.target, attempt.pressed);
         let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
@@ -133,7 +135,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     function updateUIForAttempt(attempt) {
         if(attempt.success) {
-            keyboard.successKey(attempt.pressed);
+            keyboard.successKey(attempt.target);
         } else keyboard.failKeyForever(attempt.pressed);
     }
 
@@ -216,8 +218,14 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             Padding = n => n.vexNote.left_modPx; // accidentals, etc
             WidthAndPadding = n => Width(n) + Padding(n);
 
+        function resolvePressed(target, pressed) {
+            if(!pressed.qwerty) return pressed;
+            else if(keyboard.isSameNote(target, pressed)) return target;
+            else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
+        }
+
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: x })).map(evaluate).publish().refCount();
+        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: resolvePressed(futureNotes[0].key, x) })).map(evaluate).publish().refCount();
         let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
         // create and switch to new timer every time user reaches relay point!!
@@ -236,6 +244,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // Update UI!
         this.update$ = attempts.do(updateUIForAttempt).subscribe();
 
+        // TODO filter against querty if we add querty
         let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
 
         // various ways the game will end - apply with array did not work...
