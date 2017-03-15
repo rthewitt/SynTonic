@@ -3,6 +3,11 @@
     src: url(../fonts/freefont/FreeSerif.woff)
 }
 
+#speed-slider {
+    margin: 10px;
+    width: 75%;
+}
+
 html, body {
 	height: 100%;
 	font-family: Philosopher, Tahoma; 

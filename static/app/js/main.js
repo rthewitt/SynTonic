@@ -3,6 +3,7 @@ require.config({
         "jquery": ["http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min", 
                     "libs/jquery/dist/jquery.min"],
         "bootstrap": "libs/bootstrap-dist/bootstrap.min",
+        "bootstrap-slider": "libs/bootstrap-slider/bootstrap-slider.min",
         "underscore": "libs/underscore/underscore",
         "backbone": "libs/backbone/backbone",
         "vexflow": "libs/vexflow/vexflow-min",
@@ -24,7 +25,7 @@ require.config({
 require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard',
         './dispatcher', './audio', './util', './config',
         // consume
-        'bootstrap'
+        'bootstrap', 'bootstrap-slider'
         ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
 
@@ -41,6 +42,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 gameStop,
                 gameStart,
                 gameSelect,
+                gameSpeed,
                 gameOverMessage,
                 // settings
                 showSettings,
@@ -73,6 +75,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
 
             function setupInputHandlers() {
+
+
+                MouseTrap.bind(['plus', '='], () => { if(!!game) game.faster(); });
+                MouseTrap.bind(['-', '_'], () => { if(!!game) game.slower(); });
                 
                 let qkeys = {
                     'a': 'A',
@@ -201,12 +207,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 showSettings.on('click', (ev) => $('#settings').modal('show'));
 
                 keySig = $('#keysig');
-                // TODO use select keysig from UI, and place click handler there to update select & graphics in place
-                // so that user does not have to choose based on previous knowledge
+                // TODO add a way to change key signatures from outside of settings dialog
                 keySig.on('change', ev => {
                     keyboard.clearAllKeys();
                     MusicSheet.renderStavesEmpty(currentKeySignature()); 
                 });
+
+                gameSpeed = $('#game-speed').slider().on('slide', (val) => { if(!!game) game.streamSpeed = val; });
 
 
                 // requires a game to exist of course

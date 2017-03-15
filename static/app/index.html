@@ -5,6 +5,7 @@
   <title>SynTonic</title>
   <link rel="stylesheet" type="text/css" href="css/piano.css" />
   <link rel="stylesheet" type="text/css" href="css/bootstrap.css" />
+  <link rel="stylesheet" type="text/css" href="css/bootstrap-slider.min.css" />
   <link rel="stylesheet" type="text/css" href="css/app.css" />
   <script data-main="js/main" src="js/libs/requirejs/require.js"></script>
 </head>
@@ -47,7 +48,7 @@
             </div>
         </div>
         <div class="btn-group" role="group" aria-label="...">
-            <button id="mode-display" type="button" class="btn btn-primary" disabled="disabled">Flow</button>
+            <button id="mode-display" type="button" class="btn btn-primary" disabled="disabled">Sandbox</button>
             <button id="stop-game" type="button" class="btn btn-danger">Stop Game</button>
             <button id="start-game" type="button" class="btn btn-success" style="display:none;">Start Game</button>
             <button id="show-settings" type="button" class="btn btn-primary">Settings</button>
@@ -65,8 +66,12 @@
             <div class="options">
                 <input id="is-connected" name="isConnected" type="checkbox" disabled><label for="is-connected">Instrument Connected</label>
             </div>
-            <div class="options bottom">
+            <div class="options">
                 <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play on Instrument</label>
+            </div>
+            <div class="options bottom">
+                <label for="game-speed">Note Speed</label>
+                <input id="game-speed" data-slider-id='speed-slider' type="text" data-slider-min="1" data-slider-max="15" data-slider-step="1" data-slider-value="7"/>
             </div>
             <div class="options">
                 <label for="keysig">Use Notes of Key</label>

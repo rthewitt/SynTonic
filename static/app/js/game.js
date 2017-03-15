@@ -410,6 +410,19 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.update$.dispose();
     }
 
+
+    Game.prototype.slower = function() {
+        this.streamSpeed = this.streamSpeed >= -2 ? -1 : 
+            this.streamSpeed + 2;
+    }
+
+
+    Game.prototype.faster = function() {
+        this.streamSpeed = this.streamSpeed <= -14 ? -15 : 
+            this.streamSpeed - 2;
+    }
+
+
     // when the app / dom is ready...
     function initialize(instrument) {
         gameStop = $('#stop-game');
