@@ -12,11 +12,12 @@ define(['vexflow'], function(Vex) {
 
     var gameTypes = {
         FLOW: 0, // accuracy, perhaps relay
-        STAMINA: 1, // independent timing
-        SCALES: 2, // learn key signatures no movement
-        MELODY: 3,
-        APT: 4,
-        names: ['FLOW', 'STAMINA', 'SCALES', 'MELODY', 'APT']
+        SANDBOX: 1, // free training
+        STAMINA: 2, // independent timing
+        SCALES: 3, // learn key signatures no movement
+        MELODY: 4,
+        APT: 5,
+        names: ['FLOW', 'SANDBOX', 'STAMINA', 'SCALES', 'MELODY', 'APT']
     };
 
 

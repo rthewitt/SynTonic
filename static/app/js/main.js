@@ -286,6 +286,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.FLOW:
                     case gt.STAMINA:
                     case gt.SCALES:
+                    case gt.SANDBOX:
                         // TODO move instrument midiInput into Keyboard!
                         game = new Games.Game({ 
                             type: mode,

@@ -162,6 +162,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 this.streamSpeed = -10;
                 this.generate = generateSimple;
                 break;
+            case gt.SANDBOX:
             case gt.STAMINA:
                 this.streamSpeed = -7;
                 this.generate = generateSimple;
@@ -233,7 +234,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         let maxTicks = 2*gameTime; // only valid for 500ms!
         let gameTimer;
 
-        if(this.type !== gt.STAMINA) { // negation for code form
+        if(this.type !== gt.STAMINA && this.type !== gt.SANDBOX) { // negation for code form
             gameTimer = relay.map( 
                 () => Rx.Observable.timer(0, 500).take(maxTicks).do((elapsed) => 
                         updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
