@@ -228,26 +228,29 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: resolvePressed(futureNotes[0].key, x) })).map(evaluate).publish().refCount();
-        let relay = Rx.Observable.merge(attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
+
+        let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
+
+
+        // Update UI!
+        this.update$ = attempts.do(updateUIForAttempt).subscribe();
+
+        let relay = Rx.Observable.merge(
+                attempts.filter((attempt) => attempt.success).take(1),  // first good attempt
+                Rx.Observable.fromEvent(dispatcher, 'game::relay')
+            );
 
         // create and switch to new timer every time user reaches relay point!!
         // secret here is that it will only emit once, but do side effect on every internal tick
         let maxTicks = 2*gameTime; // only valid for 500ms!
         let gameTimer;
-
-        // Update UI!
-        this.update$ = attempts.do(updateUIForAttempt).subscribe();
-
-        let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
-
         if(this.type !== gt.STAMINA && this.type !== gt.SANDBOX) { // negation for code form
             gameTimer = relay.map( 
-                () => Rx.Observable.timer(0, 500).takeUntil(badAttempts).take(maxTicks).do((elapsed) => {
-                        console.log('UPDATING');
-                        updateProgressBar(maxTicks-(elapsed+1), maxTicks); 
-                }).skip(maxTicks-1)
+                () => Rx.Observable.timer(0, 500).takeUntil(badAttempts).take(maxTicks).do((elapsed) => 
+                        updateProgressBar(maxTicks-(elapsed+1), maxTicks) 
+                ).skip(maxTicks-1)
             ).switch();
-        } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
+        } else gameTimer = Rx.Observable.never(); // no timer
 
 
         // various ways the game will end - apply with array did not work...
