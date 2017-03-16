@@ -8,9 +8,14 @@
     width: 75%;
 }
 
+.error-text {
+    margin: 0 5px;
+    color: #ac2925;
+}
+
 html, body {
 	height: 100%;
-	font-family: Philosopher, Tahoma; 
+	font-family: Arial, Helvetica, sans-serif;
     background-color: #C8D9DF;
 }
 
@@ -21,8 +26,8 @@ body {
     width: 4705px; 
 }
 
-nav {
-	font-family: Philosopher, Tahoma; 
+#logo {
+	font-family: FreeSerif;
 }
 
 nav.left {

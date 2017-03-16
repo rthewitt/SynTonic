@@ -28,10 +28,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
         'bootstrap', 'bootstrap-slider'
         ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
 
-
-            // FIXME REMOVE
-            window.doRelay = function() { dispatcher.trigger('game::relay'); }
-
             var game = null;
             var ws = null;
 
@@ -76,9 +72,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             function setupInputHandlers() {
 
-
-                MouseTrap.bind(['plus', '='], () => { if(!!game) game.faster(); });
-                MouseTrap.bind(['-', '_'], () => { if(!!game) game.slower(); });
+                MouseTrap.bind(['plus', '='], () => { gameSpeed.setValue(gameSpeed.getValue()+2); });
+                MouseTrap.bind(['-', '_'], () => { gameSpeed.setValue(gameSpeed.getValue()-2); });
                 
                 let qkeys = {
                     'a': 'A',
@@ -164,6 +159,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
             function clearUI() {
+                $('#scoreboard').text('0');
                 keyboard.clearAllKeys();
                 MusicSheet.renderStavesEmpty(currentKeySignature()); 
             }
@@ -175,7 +171,9 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 showSettings = $('#show-settings');
                 gameSelect = $('#game-type');
                 gameStart = $('#start-game');
-                gameStop = $('#stop-game');
+                gameStop = $('.stop-game');
+                stopText = $('.stop-text');
+                playNow = $('#play-now');
                 gameOver = $('#gameover');
                 gameOverMsg = $('#game-over-message');
 
@@ -195,8 +193,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     }
                 });
 
-                $('#settings').on('shown.bs.modal', clearUI);
-
                 // came from settings dialog
                 $('#play-now').on('click', () => onGameStart($('#mode-display').text().toUpperCase()) );
 
@@ -213,13 +209,22 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     MusicSheet.renderStavesEmpty(currentKeySignature()); 
                 });
 
-                gameSpeed = $('#game-speed').slider().on('slide', (val) => { if(!!game) game.streamSpeed = val; });
+                gameSpeed = $('#game-speed').slider()
+                    .on('slide', () => { 
+                        if(!!game) game.setSpeed(gameSpeed.getValue()); 
+                    }).data('slider');
 
 
                 // requires a game to exist of course
                 dispatcher.on('game::over', (success) => {
-                    setTimeout( () => displayEndScore(success), 600);
-                    onGameStop();
+                    setTimeout( () => {
+                        if(!!game) {
+                            game.cleanup(); 
+                            delete game;
+                        }
+                        displayEndScore(success)
+                        afterGameStop();
+                    }, 400);
                 });
 
                 // for system exclusive messages, pass opts: { sysex: true }
@@ -241,10 +246,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             function displayEndScore(success) {
                 // remove game so that we can take over keypress handlers
-                if(!!game) {
-                    game.cleanup(); 
-                    delete game;
-                }
                 let best = parseInt(localStorage['best']) || 0;
                 let currentScore = parseInt(game.score) || 0;
                 msg = 'Score: ' + currentScore;
@@ -262,12 +263,24 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 $('#play-again').focus();
             }
 
-
             function onGameStop() {
+                if(!!game) {
+                    game.cleanup();
+                    delete game;
+                }
+                setTimeout(() => {
+                    clearUI();
+                    afterGameStop();
+                }, 500);
+            }
+
+            function afterGameStop() {
                 gameSelect.closest('.btn-group').show();
                 gameStop.hide();
+                stopText.hide();
+                playNow.text('Save and Play!');
                 gameStart.show();
-                showSettings.attr('disabled', false);
+                keySig.prop('disabled', false);
             }
 
             function currentKeySignature() {
@@ -282,10 +295,16 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     game.cleanup(); // avoid memory leaks
                     delete game;
                 }
+                clearUI();
+                setTimeout(() => beginGame(selected), 400);
 
+            }
+
+            function beginGame(selected) { 
                 gameStart.hide(); 
                 gameStop.show(); 
-                showSettings.attr('disabled', true);
+                stopText.show(); 
+                playNow.text('Save and Restart!');
 
                 let gt = util.gameTypes;
                 let mode = gt.names.indexOf(selected);
@@ -299,6 +318,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                             type: mode,
                             keyboard: keyboard,
                             key: currentKeySignature(),
+                            speed: gameSpeed.getValue(),
                             keyHints: true, // TODO drop keyhints after first or second relay
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
@@ -308,7 +328,9 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.APT:
                         break;
                 }
+                gameSpeed.setValue(Math.abs(game.streamSpeed));
                 gameSelect.closest('.btn-group').hide();
+                keySig.prop('disabled', true);
             }
 
             var app = new Marionette.Application();

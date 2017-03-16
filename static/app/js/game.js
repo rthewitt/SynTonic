@@ -90,8 +90,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
     // started out as hit/miss, then changed to score calculation
     function evaluateSimple(attempt) {
-        //let success = !attempt.pressed.qwerty ? attempt.target === attempt.pressed :
-         //   keyboard.isSameNote(attempt.target, attempt.pressed);
         let success = attempt.target === attempt.pressed;
         let delta = success ?  this.reward : this.penalty;
         return Object.assign({}, attempt, 
@@ -163,6 +161,9 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 this.generate = generateSimple;
                 break;
             case gt.SANDBOX:
+                this.setSpeed((opts.speed || 7)); // positive values
+                this.generate = generateSimple;
+                break;
             case gt.STAMINA:
                 this.streamSpeed = -7;
                 this.generate = generateSimple;
@@ -227,42 +228,46 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
         let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: resolvePressed(futureNotes[0].key, x) })).map(evaluate).publish().refCount();
-        let relay = Rx.Observable.merge( attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
+        let relay = Rx.Observable.merge(attempts.take(1), Rx.Observable.fromEvent(dispatcher, 'game::relay'));
 
         // create and switch to new timer every time user reaches relay point!!
         // secret here is that it will only emit once, but do side effect on every internal tick
         let maxTicks = 2*gameTime; // only valid for 500ms!
         let gameTimer;
 
-        if(this.type !== gt.STAMINA && this.type !== gt.SANDBOX) { // negation for code form
-            gameTimer = relay.map( 
-                () => Rx.Observable.timer(0, 500).take(maxTicks).do((elapsed) => 
-                        updateProgressBar(maxTicks-(elapsed+1), maxTicks)).skip(maxTicks-1)
-            ).switch().take(1).publish().refCount();
-        } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
-
-
         // Update UI!
         this.update$ = attempts.do(updateUIForAttempt).subscribe();
 
-        // TODO filter against querty if we add querty
         let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
+
+        if(this.type !== gt.STAMINA && this.type !== gt.SANDBOX) { // negation for code form
+            gameTimer = relay.map( 
+                () => Rx.Observable.timer(0, 500).takeUntil(badAttempts).take(maxTicks).do((elapsed) => {
+                        console.log('UPDATING');
+                        updateProgressBar(maxTicks-(elapsed+1), maxTicks); 
+                }).skip(maxTicks-1)
+            ).switch();
+        } else gameTimer = Rx.Observable.never(); // STAMINA game, no timer
+
 
         // various ways the game will end - apply with array did not work...
         // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
         let ender = Rx.Observable.merge(
             Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
-            Rx.Observable.fromEvent(dispatcher, 'game::cleanup').take(1).do(() => console.log('Cleaning up...')),
             gameTimer.do(() => console.log('GAME TIMED OUT...')),
             badAttempts.do(() => console.log('BAD ATTEMPT...')),
             Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
-            ).publish().refCount(); // make it hot
+            ).publish().refCount(); // hot, live
 
-        badAttempts.takeUntil(ender).subscribe((mishap) => faultyNotes.push(mishap));
+
+        this.mistake$ = badAttempts.takeUntil(ender).subscribe(
+                mishap => faultyNotes.push(mishap), 
+                err => console.log(err) 
+        );
 
 
         // update scoreBoard
-        attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
+        this.score$ = attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
             scoreBoard.text(''+score);
             self.score = score;
         });
@@ -294,7 +299,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             let fx;
             try { fx = X(futureNotes[0]); } catch(_) { fx = Infinity; }
             if(fx <= cutoff) {
-                console.log('ZERO?');
                 if(self.type === gt.STAMINA) dispatcher.trigger('key::miss');
                 tempo = 0;
             } 
@@ -305,12 +309,12 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         // This is the graphical progress of the sheet music
         // Think of the sheet music as an ever advancing stream that stops only when it must
-        let noteStream = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender)
+        this.noteStream$ = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender)
             .scan(advanceStream, MusicSheet.startNoteX)
             .subscribe( 
                 p => MusicSheet.renderStaves(playQueue, self.key, p),
                 err => console.log('ERROR IN STREAM\n'+err),
-                p => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
+                () => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
             );
 
 
@@ -332,7 +336,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.releases$ = pr$;
 
         // trigger a relay attempt if we make it to 30!
-        attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
+        this.relay$ = attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
             // TODO evaluate this decision to have three different points for change
             // relay could be in advanceForever, and this success property literally just
             // passes the buck to advanceStram (for graphics).
@@ -376,17 +380,18 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         }
 
         // player needs a new key to play!
-        let moveForward = attempts.takeUntil(ender).filter((attempt) => attempt.success)
-            .delay(100).do(clearAllKeys).subscribe( advanceForever, (err) => console.log(err),
-                // on complete (game ended)
-                () => {
-                    console.log('ENDING GAME');
-                    setNoProgress();
-                    dispatcher.trigger('game::over');
-                });
+        // This is a horrible breach of single responsibility
+        this.moveForward$ = attempts.takeUntil(ender).filter((attempt) => attempt.success)
+            .delay(100).do(clearAllKeys).subscribe( advanceForever, (err) => console.log(err))
 
 
-        let gamePlay = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
+        this.note$ = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
+
+        this.over$ = ender.subscribe(() => {
+            console.log('game ended.');
+            setNoProgress();
+            dispatcher.trigger('game::over');
+        });
 
         let tonic = this.key ? util.getScaleForKey(this.key)[0] : ['C', 3],
             startNote = new Note(tonic[0], tonic[1], this.key);
@@ -404,28 +409,30 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     // avoid memory leaks!
     Game.prototype.cleanup = function() { 
         console.log('cleaning up');
-        dispatcher.trigger('game::cleanup');
         this.presses$.dispose();
         this.releases$.dispose();
+        this.mistake$.dispose();
+        this.score$.dispose();
         this.update$.dispose();
+        this.relay$.dispose();
+        this.moveForward$.dispose();
+        this.note$.dispose();
+        this.over$.dispose();
     }
 
 
-    Game.prototype.slower = function() {
-        this.streamSpeed = this.streamSpeed >= -2 ? -1 : 
-            this.streamSpeed + 2;
-    }
-
-
-    Game.prototype.faster = function() {
-        this.streamSpeed = this.streamSpeed <= -14 ? -15 : 
-            this.streamSpeed - 2;
+    Game.prototype.setSpeed = function(speed) {
+        let s;
+        if(speed > 15) s = 15;
+        else if(speed < 1) s = 1;
+        else s = speed;
+        this.streamSpeed = -s;
     }
 
 
     // when the app / dom is ready...
     function initialize(instrument) {
-        gameStop = $('#stop-game');
+        gameStop = $('.stop-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
 

@@ -30,7 +30,7 @@
   </script>
   <![endif]-->
 	<nav class="left">
-		<h1 id="serif" style="font-family: FreeSerif">SynTonic</h1>
+		<h1 id="logo">SynTonic</h1>
 	</nav>
 	<nav class="right">
         <div class="btn-group" role="group" aria-label="..." style="display:none;">
@@ -49,7 +49,7 @@
         </div>
         <div class="btn-group" role="group" aria-label="...">
             <button id="mode-display" type="button" class="btn btn-primary" disabled="disabled">Sandbox</button>
-            <button id="stop-game" type="button" class="btn btn-danger">Stop Game</button>
+            <button type="button" class="btn btn-danger stop-game">Stop Game</button>
             <button id="start-game" type="button" class="btn btn-success" style="display:none;">Start Game</button>
             <button id="show-settings" type="button" class="btn btn-primary">Settings</button>
         </div>
@@ -67,7 +67,7 @@
                 <input id="is-connected" name="isConnected" type="checkbox" disabled><label for="is-connected">Instrument Connected</label>
             </div>
             <div class="options">
-                <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play on Instrument</label>
+                <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play sounds on instrument</label>
             </div>
             <div class="options bottom">
                 <label for="game-speed">Note Speed</label>
@@ -112,11 +112,13 @@
                         <option value="Abm">Abm</option>
                     </optgroup>
                 </select>
+                <span class="error-text stop-text">Must stop existing game to change key</span>
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
-            <button type="button" id="play-now" class="btn btn-primary" data-dismiss="modal">Save and Play!</button>
+            <button type="button" class="btn btn-danger pull-left stop-game">Stop Game</button>
+            <button type="button" class="btn btn-default" data-dismiss="modal">Continue</button>
+            <button type="button" id="play-now" class="btn btn-primary" data-dismiss="modal">Save and Restart!</button>
           </div>
         </div>
       </div>
