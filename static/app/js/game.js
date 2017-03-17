@@ -146,6 +146,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         // TODO change this and all occurences to keysig to avoid ambiguity with Note.key / pianoKey
         this.key = opts.key;
 
+        this.pianoHints = opts.pianoHints;
+
         this.reward = 1;
         this.penalty = 0;
 
@@ -328,6 +330,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         if(audibleMiss) {
             pp$ = attempts.subscribe((attempt) => {
                 key = attempt.success ? attempt.pressed : kb.keysById['0C'];
+                // FIXME no longer a distributed event, this is merely a function call on keyboard
                 dispatcher.trigger('key::press', key);
                 dispatcher.trigger('key::release', key);
             });
@@ -379,7 +382,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             } else if(futureNotes.length <= 11) notegen.onNext();
                 //notegen.onNext(generate())
             // advance the keyboard UI
-            activateKey(futureNotes[0].key); 
+            if(self.pianoHints)
+                activateKey(futureNotes[0].key); 
         }
 
         // player needs a new key to play!
@@ -419,6 +423,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.update$.dispose();
         this.relay$.dispose();
         this.moveForward$.dispose();
+        this.noteStream$.dispose();
         this.note$.dispose();
         this.over$.dispose();
     }

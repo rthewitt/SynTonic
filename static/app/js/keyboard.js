@@ -65,7 +65,9 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
         this.midiOut = null;
         this.output = false; // TODO make this an actual MIDI output, not boolean
-        this.silent = false; // currently game controls whether we make a noise
+
+        // TODO make keyboard respond to settings change just like game does (will)
+        this.silent = false;
 
         this.numKeys = opts.numKeys || 88;
         this.min = opts.min || 21;
@@ -115,11 +117,13 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
         this.MIDDLE_C = this.keysById['3C'];
 
-        // handle keys
+        // TODO change this to pressKey -> UI + playNote
         dispatcher.on('key::press', function(key) {
             $('#' + key.id).addClass('pressed');
             if(!self.silent) self.playNote(key);
         });
+
+        // TODO change this to releaseKey -> UI + playNote
         dispatcher.on('key::release', function(key) {
             $('#' + key.id).removeClass('pressed');
             if(!self.silent) self.stopNote(key); // how to handle this?

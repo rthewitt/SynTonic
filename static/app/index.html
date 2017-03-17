@@ -66,14 +66,17 @@
             <div class="options">
                 <input id="is-connected" name="isConnected" type="checkbox" disabled><label for="is-connected">Instrument Connected</label>
             </div>
-            <div class="options">
+            <div class="options bottom">
                 <input id="use-instrument" name="useInstrument" type="checkbox"><label for="use-instrument">Play sounds on instrument</label>
             </div>
-            <div class="options bottom">
+            <div class="options">
                 <label for="game-speed">Note Speed</label>
                 <input id="game-speed" data-slider-id='speed-slider' type="text" data-slider-min="1" data-slider-max="15" data-slider-step="1" data-slider-value="7"/>
             </div>
             <div class="options">
+                <input id="keysig-hints" name="keysigHints" type="checkbox" checked="checked" disabled><label for="keysig-hints">Show KeySignature Hints</label>
+            </div>
+            <div class="options bottom">
                 <label for="keysig">Use Notes of Key</label>
                 <select id="keysig" name="keySignature" class="form-control">
                     <option value="none">All Notes</option>
@@ -113,6 +116,9 @@
                     </optgroup>
                 </select>
                 <span class="error-text stop-text">Must stop existing game to change key</span>
+            </div>
+            <div class="options">
+                <input id="piano-hints" name="pianoHints" type="checkbox" checked="checked"><label for="piano-hints">Highlight current Piano Key</label>
             </div>
           </div>
           <div class="modal-footer">

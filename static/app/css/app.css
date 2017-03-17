@@ -44,12 +44,13 @@ nav.right {
 .options {
     display: block;
     color: #337ab7;
+    margin: 5px auto;
 }
 
 .bottom {
     border-bottom: 1px solid #ccc;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
+    padding-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .options input[type=checkbox] {

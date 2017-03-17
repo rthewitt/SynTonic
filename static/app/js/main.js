@@ -194,7 +194,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 });
 
                 // came from settings dialog
-                $('#play-now').on('click', () => onGameStart($('#mode-display').text().toUpperCase()) );
+                playNow.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
 
                 gameStop.on('click', onGameStop);
                 gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
@@ -319,7 +319,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                             keyboard: keyboard,
                             key: currentKeySignature(),
                             speed: gameSpeed.getValue(),
-                            keyHints: true, // TODO drop keyhints after first or second relay
+                            keyHints: $('#keysig-hints').prop('checked'),
+                            pianoHints: $('#piano-hints').prop('checked'), 
                             playerPresses: playerPresses,
                             playerReleases: playerReleases
                         });
