@@ -113,21 +113,7 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
             }
         }
 
-        // TODO visualy inspect each and every note after this construction
-
         this.MIDDLE_C = this.keysById['3C'];
-
-        // TODO change this to pressKey -> UI + playNote
-        dispatcher.on('key::press', function(key) {
-            $('#' + key.id).addClass('pressed');
-            if(!self.silent) self.playNote(key);
-        });
-
-        // TODO change this to releaseKey -> UI + playNote
-        dispatcher.on('key::release', function(key) {
-            $('#' + key.id).removeClass('pressed');
-            if(!self.silent) self.stopNote(key); // how to handle this?
-        });
     }
 
 
@@ -215,6 +201,10 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     }
 
 
+    Keyboard.prototype.pressKey = function(key) {
+        key.$el.addClass('pressed');
+    }
+
     Keyboard.prototype.clearKey = function(key) {
         key.$el.removeClass('waiting success failure pressed'); // clearing pressed may be a mistake
     }
@@ -231,16 +221,23 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
 
     Keyboard.prototype.successKey = function(key) {
+        this.pressKey(key);
         this.colorKey(key, 'success', 200);
+        if(!this.silent) this.playNote(key);
     };
 
 
     Keyboard.prototype.failKey = function(key) {
+        this.pressKey(key);
         this.colorKey(key, 'failure', 200);
+        if(!this.silent) this.playNote(this.keysById['0C']);
     };
 
+
     Keyboard.prototype.failKeyForever = function(key) {
+        this.pressKey(key);
         this.colorKey(key, 'failure');
+        if(!this.silent) this.playNote(this.keysById['0C']);
     };
 
 

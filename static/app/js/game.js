@@ -88,15 +88,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     }
 
 
-    // started out as hit/miss, then changed to score calculation
-    function evaluateSimple(attempt) {
-        let success = attempt.target === attempt.pressed;
-        let delta = success ?  this.reward : this.penalty;
-        return Object.assign({}, attempt, 
-                { success: success, modifier: delta }); // score modifier
-    }
-
-
     // TODO merge these generate functions, nearly identtical now
     // TODO get this once, not every single time
     // benefit is that I could cycle scales as I go
@@ -131,12 +122,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         return Rx.Observable.just(new Note(noteName, octave, this.key));
     }
 
-    function updateUIForAttempt(attempt) {
-        if(attempt.success) {
-            keyboard.successKey(attempt.target);
-        } else keyboard.failKeyForever(attempt.pressed);
-    }
-
 
     function Game(opts) {
         initialize(opts.keyboard);
@@ -151,15 +136,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.reward = 1;
         this.penalty = 0;
 
-        let gameTime = 20;
-
         let playerPresses = opts.playerPresses,
             playerReleases = opts.playerReleases;
 
 
         switch(this.type) {
             case gt.FLOW:
-                this.streamSpeed = -10;
+                this.streamSpeed = 10;
                 this.generate = generateSimple;
                 break;
             case gt.SANDBOX:
@@ -167,7 +150,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 this.generate = generateSimple;
                 break;
             case gt.STAMINA:
-                this.streamSpeed = -7;
+                this.streamSpeed = 7;
                 this.generate = generateSimple;
                 break;
             case gt.SCALES:
@@ -181,13 +164,17 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         let kb = keyboard;
             clearAllKeys = kb.clearAllKeys.bind(kb),
             activateKey = kb.activateKey.bind(kb),
-            generate = this.generate.bind(this),
-            evaluate = this.evaluate.bind(this);
+            generate = this.generate.bind(this);
 
         clearAllKeys();
 
+        let X = n => n.vexNote.getAbsoluteX(),
+            Width = n => n.vexNote.width,
+            Padding = n => n.vexNote.left_modPx; // accidentals, etc
+            WidthAndPadding = n => Width(n) + Padding(n);
 
         var self = this;
+/*
 
         // "generator" for notes
         var notegen = new Rx.Subject();
@@ -215,12 +202,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             fluffyNotes = playQueue.fluffyNotes; // padding justification in modes with no movement
         
 
-        let firstNote = () => floatyNotes.length ? floatyNotes[0] : futureNotes[0];
 
-        let X = n => n.vexNote.getAbsoluteX(),
-            Width = n => n.vexNote.width,
-            Padding = n => n.vexNote.left_modPx; // accidentals, etc
-            WidthAndPadding = n => Width(n) + Padding(n);
 
         function resolvePressed(target, pressed) {
             if(!pressed.qwerty) return pressed;
@@ -278,6 +260,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         });
 
 
+        // TODO replace this
         function calcStreamDelta(delta) {
             let first = firstNote();
             // take into account accidentals if there is one (padding)
@@ -384,6 +367,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             // advance the keyboard UI
             if(self.pianoHints)
                 activateKey(futureNotes[0].key); 
+
         }
 
         // player needs a new key to play!
@@ -409,23 +393,128 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         MusicSheet.renderStaves(playQueue, this.key);
         scoreBoard.text('0');
+*/
+
+            // REWRITE
+
+
+            var GAME_TIME = 500; // 40;
+
+            let firstNote = (pq) => pq.floatyNotes.length ? pq.floatyNotes[0] : pq.futureNotes[0];
+
+            function resolvePressed(target, pressed) {
+                if(!pressed.qwerty) return pressed;
+                else if(keyboard.isSameNote(target, pressed)) return target;
+                else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
+            }
+
+            // TODO consider simplifying from main.js
+            const input$ = Rx.Observable.merge(
+                    playerPresses.map(key => ({ pkey: key, action: 1 })),
+                    playerReleases.map(key => ({ pkey: key, action: 0 }))
+                )
+                .startWith({pkey: {}, action: 0}).distinctUntilChanged();
+
+
+            const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
+
+            const TICKER_INTERVAL = 34;
+
+            const ticker$ = Rx.Observable.interval(TICKER_INTERVAL, Rx.Scheduler.requestAnimationFrame).map(() => ({
+                time: Date.now(),
+                deltaTime: null
+            }))
+            .scan( (prev, cur) => ({
+                time: cur.time,
+                deltaTime: (cur.time, prev.time) / 1000
+            }));
+
+
+            let START_ARRAY = ['C','D','E','F','G','A','B'];
+
+            INITIAL_NOTES = {
+                startNoteX: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
+                notesToRender: {
+                    futureNotes: START_ARRAY.concat(START_ARRAY).map( n => new Note(n, 3)),
+                    faultyNotes: [],
+                    floatyNotes: [],
+                    fluffyNotes: [] // phantom, right-justification for reverse ATM
+                },
+                time: GAME_TIME,
+                score: 0
+            }
+
+            // udpdate the state of the world
+            const world$ = ticker$
+                .withLatestFrom(input$, stop$)
+                .scan((state, [tick, input, stop]) => {
+
+                    let fut = state.notesToRender.futureNotes;
+                    let pressed = resolvePressed(fut[0].key, input.pkey);
+                    let success = pressed === fut[0].key && input.action === 1;
+                    let newFut = success ? fut.slice(1) : fut;
+                    let score = success ? state.score + 1 : state.score
+                    let relay = success && score % 5 == 0;
+                   
+                    // FIXME here we have problems with the duplicate actions, so we need to address the window/count idea
+                    // or come up with something better
+                    let successKeys = [], failureKeys = [];
+                    if(success) successKeys.push(pressed);
+                    else if(input.action === 1) failureKeys.push(pressed);
+
+
+                    /* TODO add this back in once we are able to stop the note
+                    let cutoff = self.type === gt.STAMINA ? 
+                        MusicSheet.startNoteX - Width(newFut[0]) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
+                    */
+                    let cutoff = MusicSheet.startNoteX - Width(newFut[0]);
+
+                    let first = newFut[0];
+                    let curPos = success ? X(first) - self.streamSpeed - WidthAndPadding(first) : state.startNoteX - self.streamSpeed;
+
+                    return { 
+                        startNoteX: curPos,
+                        notesToRender: {
+                            futureNotes: newFut,
+                            floatyNotes: [],
+                            faultyNotes: [],
+                            fluffyNotes: []
+                        },
+                        stopped: !!stop,
+                        time: relay ? GAME_TIME : state.time - 1,
+                        successKeys: successKeys,
+                        failureKeys: failureKeys,
+                        score: score,
+                        relay: relay,
+                        missed: curPos < cutoff
+                    } 
+                }, INITIAL_NOTES);
+
+
+            // this will render everything in update.
+            const game = Rx.Observable
+                .combineLatest(ticker$, input$, world$)
+                .sample(TICKER_INTERVAL)
+                .subscribe(([ticker, input, world]) => {
+                    MusicSheet.renderStaves(world.notesToRender, self.key, world.startNoteX),
+                    updateProgressBar(world.time, GAME_TIME) 
+
+                    world.successKeys.forEach( k => keyboard.successKey(k));
+                    world.failureKeys.forEach( k => keyboard.failKeyForever(k));
+
+                    scoreBoard.text(''+world.score);
+                    if(world.time <= 0 || world.stopped || world.missed) game.dispose();
+                    if(!!world.relay) console.log('RELAY');
+                });
+
+            //renderSheetEmpty();
+        // END REWRITE
     }
 
-    Game.prototype.evaluate = evaluateSimple;
-
     // avoid memory leaks!
+    // TODO remove this entire, I guess...
     Game.prototype.cleanup = function() { 
         console.log('cleaning up');
-        this.presses$.dispose();
-        this.releases$.dispose();
-        this.mistake$.dispose();
-        this.score$.dispose();
-        this.update$.dispose();
-        this.relay$.dispose();
-        this.moveForward$.dispose();
-        this.noteStream$.dispose();
-        this.note$.dispose();
-        this.over$.dispose();
     }
 
 
@@ -434,7 +523,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         if(speed > 15) s = 15;
         else if(speed < 1) s = 1;
         else s = speed;
-        this.streamSpeed = -s;
+        this.streamSpeed = s;
     }
 
 
