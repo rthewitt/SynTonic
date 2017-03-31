@@ -408,12 +408,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
             }
 
-            // TODO consider simplifying from main.js
+            // TODO consider simplifying from main.js - How?
             const input$ = Rx.Observable.merge(
                     playerPresses.map(key => ({ pkey: key, action: 1 })),
                     playerReleases.map(key => ({ pkey: key, action: 0 }))
-                )
-                .startWith({pkey: {}, action: 0}).distinctUntilChanged();
+                )// distinctUntilChanged no longer needed
 
 
             const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
@@ -446,21 +445,25 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
             // udpdate the state of the world
             const world$ = ticker$
-                .withLatestFrom(input$, stop$)
-                .scan((state, [tick, input, stop]) => {
+                .withLatestFrom(stop$)
+                .scan((state, [tick, stop]) => {
 
-                    let fut = state.notesToRender.futureNotes;
-                    let pressed = resolvePressed(fut[0].key, input.pkey);
-                    let success = pressed === fut[0].key && input.action === 1;
+                    let fut = state.notesToRender.futureNotes,
+                        target = fut[0].key;
+                    //let pressed = resolvePressed(fut[0].key, input.pkey); // TODO replace qwerty once again
+                    let numPressed = keyboard.numPressed();
+                    let success = numPressed === 1 && keyboard.isPressed(target);
                     let newFut = success ? fut.slice(1) : fut;
                     let score = success ? state.score + 1 : state.score
                     let relay = success && score % 5 == 0;
                    
-                    // FIXME here we have problems with the duplicate actions, so we need to address the window/count idea
-                    // or come up with something better
+                    // FIXME we have STATE CHANGES HERE.  REMOVE THEM AS SOON AS WE FIGURE OUT DURATION.
                     let successKeys = [], failureKeys = [];
-                    if(success) successKeys.push(pressed);
-                    else if(input.action === 1) failureKeys.push(pressed);
+                    if(success) {
+                        successKeys.push(target);
+                    } else if(numPressed > 0) {
+                        keyboard.getPressedKeys().forEach(f => failureKeys.push(f));
+                    }
 
 
                     /* TODO add this back in once we are able to stop the note
@@ -493,18 +496,35 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
             // this will render everything in update.
             const game = Rx.Observable
-                .combineLatest(ticker$, input$, world$)
+                .combineLatest(ticker$, world$)
                 .sample(TICKER_INTERVAL)
-                .subscribe(([ticker, input, world]) => {
+                .subscribe(([ticker, world]) => {
                     MusicSheet.renderStaves(world.notesToRender, self.key, world.startNoteX),
                     updateProgressBar(world.time, GAME_TIME) 
 
-                    world.successKeys.forEach( k => keyboard.successKey(k));
-                    world.failureKeys.forEach( k => keyboard.failKeyForever(k));
+                    // TODO  fix even if problem is still there, successKey should not "press", should be UI only, right?
+                    world.successKeys.forEach( k => {
+                        keyboard.successKey(k);
+                        keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                    });
+                    world.failureKeys.forEach( k => {
+                        keyboard.failKeyForever(k);
+                        keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                    });
 
                     scoreBoard.text(''+world.score);
                     if(world.time <= 0 || world.stopped || world.missed) game.dispose();
                     if(!!world.relay) console.log('RELAY');
+                });
+
+
+            // TODO combine this with definition since input$ is not used anywhere
+            // consider changing qwerty to select from set octave
+            // and possibly move all of it straight into main.js since it could be
+            // considered independent of the game. (erm...)
+            input$.subscribe( input => {
+                    if(input.action > 0) keyboard.pressKey(input.pkey);
+                    else keyboard.releaseKey(input.pkey);
                 });
 
             //renderSheetEmpty();

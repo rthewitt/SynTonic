@@ -62,6 +62,7 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
 
     function Keyboard(opts) {
+        var self = this;
 
         this.midiOut = null;
         this.output = false; // TODO make this an actual MIDI output, not boolean
@@ -82,16 +83,19 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         // a way to cross reference from MIDI notes
         this.keys = _.flatten( _.map(this.octaves, function(o) { return o.keys; }));
 
+        this.keyState = {}
+
         // ensure each note has an element to play with
         // because ids from the game may not match up to the
         // unique id used for HTML
         this.keys.forEach( key => {
             key.$el = $('#'+key.id);
+            // setup state (pressed / not pressed)
+            self.keyState[key.id] = false;
         });
 
         // ...and a way to reference keys directly
         this.keysById = new Object; 
-        var self = this;
         _.each(this.keys, function(keyObj) {
             self.keysById[ keyObj.id ] = keyObj;
         });
@@ -185,12 +189,31 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         output.send( [0x90, noteId, 0x7f] );  // full velocity
         output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
     }
-    
 
-    // ===================
-    // Graphical Functions
-    // ===================
+    // ==================================
+    //    State & Graphical Functions
+    // ==================================
     
+    Keyboard.prototype.numPressed = function() {
+        let c=0;
+        for(var k in this.keyState) if(this.keyState[k]) c++;
+        return c;
+    }
+
+    Keyboard.prototype.getPressedKeys = function() {
+        let pressed = [];
+        for(var k in this.keyState) if(this.keyState[k]) pressed.push(this.keysById[k]);
+        return pressed;
+    }
+
+
+    Keyboard.prototype.isPressed = function(key) {
+        return this.keyState[key.id];
+    }
+
+    Keyboard.prototype.isPressedById = function(keyId) {
+        return this.keyState[keyId];
+    }
 
     // FIXME to handle the new scheme where id may not be in HTML, set $el or elem on key object during construction
     Keyboard.prototype.colorKey = function(key, clazz, duration) {
@@ -202,7 +225,20 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
 
     Keyboard.prototype.pressKey = function(key) {
+        this.keyState[key.id] = true;
         key.$el.addClass('pressed');
+    }
+
+    // FIXME This is a hack to release the key but keep it
+    // delay changing the UI, so that keypresses longer
+    // than game update rate don't count as failures.
+    Keyboard.prototype.ignoreKeyState = function(key) {
+        this.keyState[key.id] = false;
+    }
+
+    Keyboard.prototype.releaseKey = function(key) {
+        this.keyState[key.id] = false;
+        key.$el.removeClass('pressed');
     }
 
     Keyboard.prototype.clearKey = function(key) {
@@ -221,14 +257,12 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
 
     Keyboard.prototype.successKey = function(key) {
-        this.pressKey(key);
         this.colorKey(key, 'success', 200);
         if(!this.silent) this.playNote(key);
     };
 
 
     Keyboard.prototype.failKey = function(key) {
-        this.pressKey(key);
         this.colorKey(key, 'failure', 200);
         if(!this.silent) this.playNote(this.keysById['0C']);
     };
