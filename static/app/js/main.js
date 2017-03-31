@@ -45,9 +45,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 keySig;
 
             var midi = null,
-                midiInput, // need a handle for event listener
-                playerPresses,
-                playerReleases,
+                midiInput = { addEventListener: function(){} }, // need a handle for event listener
                 easyDismi$$; // temporary handler to continue with keypress
 
             function parseMidi( event ) {
@@ -102,27 +100,26 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         () => dispatcher.trigger('qwerty', qkeys[combo]));
 
                 //  we may have problems here
-                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => ({ id: null, note: noteName, qwerty: true }));
+                //let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => ({ id: null, note: noteName, qwerty: true }));
+                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => (keyboard.keysById['3'+noteName]));
 
-                // TODO move this into keyboard
                 let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
                 let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
 
-                if(!!midiInput) {
-                    let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
-                    let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
-                    let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
+                let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
+                let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
+                let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
 
-                    playerPresses = Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses);
-                    playerReleases = Rx.Observable.merge(mouseKeyUps, midiKeyUps);
-                } else {
-                    playerPresses = Rx.Observable.merge(mouseKeyDowns, qwertyPresses);
-                    playerReleases = mouseKeyUps;
-                }
-            }
+                Rx.Observable.merge(
+                        Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses)
+                            .map(key => ({ pkey: key, action: 1 })),
 
-
-            function removeInputHandlers(mAccess) {
+                        Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(75))
+                            .map(key => ({ pkey: key, action: 0 }))
+                    ).subscribe( input => {
+                        if(input.action > 0) keyboard.pressKey(input.pkey);
+                        else keyboard.releaseKey(input.pkey);
+                    });
             }
 
             const hardcodedInputs = ['D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67', 'EF99508ECC892C3460736F15B536E304B0BBE88E7BFA62BE3CA2D8B56CC3996A', '-11152290'];
@@ -218,10 +215,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 // requires a game to exist of course
                 dispatcher.on('game::over', (success) => {
                     setTimeout( () => {
-                        if(!!game) {
-                            game.cleanup(); 
-                            delete game;
-                        }
+                        if(!!game) delete game;
                         displayEndScore(success)
                         afterGameStop();
                     }, 400);
@@ -255,6 +249,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 }
                 gameOverMsg.text(msg);
                 // allow middle c to close the dialog so user doesn't need to use laptop
+                // TODO make this an interval to check the keyboard
                 easyDismi$$ = playerPresses.filter((key) => key === keyboard.MIDDLE_C).take(1).subscribe(()=> {
                     gameOver.modal('hide');
                     onPlayAgain();
@@ -264,10 +259,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             }
 
             function onGameStop() {
-                if(!!game) {
-                    game.cleanup();
-                    delete game;
-                }
+                if(!!game) delete game;
                 setTimeout(() => {
                     clearUI();
                     afterGameStop();
@@ -291,10 +283,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
             function onGameStart(selected) { 
                 // this should never happen
-                if(!!game) {
-                    game.cleanup(); // avoid memory leaks
-                    delete game;
-                }
+                if(!!game) delete game;
                 clearUI();
                 setTimeout(() => beginGame(selected), 400);
 
@@ -313,16 +302,13 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.STAMINA:
                     case gt.SCALES:
                     case gt.SANDBOX:
-                        // TODO move instrument midiInput into Keyboard!
                         game = new Games.Game({ 
                             type: mode,
                             keyboard: keyboard,
                             key: currentKeySignature(),
                             speed: gameSpeed.getValue(),
                             keyHints: $('#keysig-hints').prop('checked'),
-                            pianoHints: $('#piano-hints').prop('checked'), 
-                            playerPresses: playerPresses,
-                            playerReleases: playerReleases
+                            pianoHints: $('#piano-hints').prop('checked') 
                         });
                         break;
                     case gt.MELODY: // TODO

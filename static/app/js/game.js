@@ -136,10 +136,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         this.reward = 1;
         this.penalty = 0;
 
-        let playerPresses = opts.playerPresses,
-            playerReleases = opts.playerReleases;
-
-
         switch(this.type) {
             case gt.FLOW:
                 this.streamSpeed = 10;
@@ -408,11 +404,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
             }
 
-            // TODO consider simplifying from main.js - How?
-            const input$ = Rx.Observable.merge(
-                    playerPresses.map(key => ({ pkey: key, action: 1 })),
-                    playerReleases.map(key => ({ pkey: key, action: 0 }))
-                )// distinctUntilChanged no longer needed
 
 
             const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
@@ -457,11 +448,9 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                     let score = success ? state.score + 1 : state.score
                     let relay = success && score % 5 == 0;
                    
-                    // FIXME we have STATE CHANGES HERE.  REMOVE THEM AS SOON AS WE FIGURE OUT DURATION.
                     let successKeys = [], failureKeys = [];
-                    if(success) {
-                        successKeys.push(target);
-                    } else if(numPressed > 0) {
+                    if(success) successKeys.push(target);
+                    else if(numPressed > 0) {
                         keyboard.getPressedKeys().forEach(f => failureKeys.push(f));
                     }
 
@@ -518,23 +507,9 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 });
 
 
-            // TODO combine this with definition since input$ is not used anywhere
-            // consider changing qwerty to select from set octave
-            // and possibly move all of it straight into main.js since it could be
-            // considered independent of the game. (erm...)
-            input$.subscribe( input => {
-                    if(input.action > 0) keyboard.pressKey(input.pkey);
-                    else keyboard.releaseKey(input.pkey);
-                });
 
             //renderSheetEmpty();
         // END REWRITE
-    }
-
-    // avoid memory leaks!
-    // TODO remove this entire, I guess...
-    Game.prototype.cleanup = function() { 
-        console.log('cleaning up');
     }
 
 
