@@ -21,31 +21,37 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
             id: '00',
             keys: [{
                     id: '00A',
+                    octaveId: '00',
                     note: 'A'
                 }, {
                     id: '00As',
+                    octaveId: '00',
                     note: 'As'
                 }, {
                     id: '00B',
+                    octaveId: '00',
                     note: 'B'
                 }]
         };
 
         var lastOctave = {
-            id: '07',
+            id: '7',
             keys: [{
                     id: '7C',
+                    octaveId: '7',
                     note: 'C'
                 }]
         };
 
         function octave(idx) {
-            var O = { id: idx, keys: [] };
-            for(var k=0; k < htmlNoteNames.length; k++) {
-                var name = htmlNoteNames[k];
+            let oId = ''+idx;
+            let O = { id: oId, keys: [] };
+            for(let k=0; k < htmlNoteNames.length; k++) {
+                let name = htmlNoteNames[k];
                 O.keys.push({ 
-                    id: '' + idx + name,
-                    note: name
+                    id: oId + name,
+                    note: name,
+                    octaveId: oId,
                 });
             }
             return O;

@@ -12,6 +12,15 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         progressBar;
 
 
+    function createNoteFromPianoKey(pianoKey) {
+        // TODO align these octave IDs - there is no need for strings or double zeros
+        if(pianoKey.octaveId == '00') {
+            alert('TODO align octaveIds, HTML, and Vex');
+            throw Exception('TODO');
+        }
+        return new Note(pianoKey.note, parseInt(pianoKey.octaveId)); // no keysig, because keysig on the constructor modifies the note based on lookup table, to "simplify" generation.
+    }
+
     // stub so that our API is not confusing (vexNotes vs Note Notes)
     // will go away if and when we use "inheritance" - still hesitant on that
     function stubNote(pianoKey, flavor) {
@@ -165,6 +174,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         clearAllKeys();
 
         let X = n => n.vexNote.getAbsoluteX(),
+            X_infinity= n => { try { return X(n) } catch(e) { return Infinity; } },
             Width = n => n.vexNote.width,
             Padding = n => n.vexNote.left_modPx; // accidentals, etc
             WidthAndPadding = n => Width(n) + Padding(n);
@@ -188,198 +198,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             throw Exception('Cannot generate from thrusted value='+thrust+'of type '+(typeof thrust));
         });
 
-        // state variables (actually several queues)
-        var playQueue = window.playQueue = { faultyNotes: [], floatyNotes: [], futureNotes: [], fluffyNotes: []};
-
-        // conveniences
-        let faultyNotes = playQueue.faultyNotes,
-            floatyNotes = playQueue.floatyNotes,
-            futureNotes = playQueue.futureNotes,
-            fluffyNotes = playQueue.fluffyNotes; // padding justification in modes with no movement
-        
-
-
-
-        function resolvePressed(target, pressed) {
-            if(!pressed.qwerty) return pressed;
-            else if(keyboard.isSameNote(target, pressed)) return target;
-            else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
-        }
-
-        // IMPORTANT playQueue dequeues must only occur downstream to preserve accuracy
-        let attempts = playerPresses.map((x) => ({ target: futureNotes[0].key, pressed: resolvePressed(futureNotes[0].key, x) })).map(evaluate).publish().refCount();
-
-        let badAttempts = attempts.filter((a) => !a.success).pluck('pressed').map(badNote);
-
-
-        // Update UI!
-        this.update$ = attempts.do(updateUIForAttempt).subscribe();
-
-        let relay = Rx.Observable.merge(
-                attempts.filter((attempt) => attempt.success).take(1),  // first good attempt
-                Rx.Observable.fromEvent(dispatcher, 'game::relay')
-            );
-
-        // create and switch to new timer every time user reaches relay point!!
-        // secret here is that it will only emit once, but do side effect on every internal tick
-        let maxTicks = 2*gameTime; // only valid for 500ms!
-        let gameTimer;
-        if(this.type !== gt.STAMINA && this.type !== gt.SANDBOX) { // negation for code form
-            gameTimer = relay.map( 
-                () => Rx.Observable.timer(0, 500).takeUntil(badAttempts).take(maxTicks).do((elapsed) => 
-                        updateProgressBar(maxTicks-(elapsed+1), maxTicks) 
-                ).skip(maxTicks-1)
-            ).switch();
-        } else gameTimer = Rx.Observable.never(); // no timer
-
-
-        // various ways the game will end - apply with array did not work...
-        // placed visual cue (green/red) here to ensure it still happens on failure, but not beyond
-        let ender = Rx.Observable.merge(
-            Rx.Observable.fromEvent(gameStop, 'click').take(1).do(() => console.log('GAME MANUALLY STOPPED')),
-            gameTimer.do(() => console.log('GAME TIMED OUT...')),
-            badAttempts.do(() => console.log('BAD ATTEMPT...')),
-            Rx.Observable.fromEvent(dispatcher, 'key::miss').take(1).do(() => console.log('Missed!')) // player missed!
-            ).publish().refCount(); // hot, live
-
-
-        this.mistake$ = badAttempts.takeUntil(ender).subscribe(
-                mishap => faultyNotes.push(mishap), 
-                err => console.log(err) 
-        );
-
-
-        // update scoreBoard
-        this.score$ = attempts.pluck('modifier').takeUntil(ender).scan((score, delta) => score+delta > 0 ? score+delta : 0 , 0).subscribe((score) => {
-            scoreBoard.text(''+score);
-            self.score = score;
-        });
-
-
-        // TODO replace this
-        function calcStreamDelta(delta) {
-            let first = firstNote();
-            // take into account accidentals if there is one (padding)
-            return X(first) + delta - WidthAndPadding(first);
-        }
-
-
-        function advanceStream(pos, tick) {
-            let tempo = self.streamSpeed;
-
-            if(floatyNotes.length && X(floatyNotes[0]) < (MusicSheet.startNoteX-75)) {
-                floatyNotes.shift();
-                return calcStreamDelta(tempo);
-            }
-
-            if(futureNotes[0] && futureNotes[0].status === 'success') {
-                floatyNotes.push( futureNotes.shift() ); 
-                return calcStreamDelta(tempo);
-            }
-
-            // WILL THIS WORK WITH SUCCESS?
-            let cutoff = self.type === gt.STAMINA ? MusicSheet.startNoteX - Width(firstNote()) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
-
-            let fx;
-            try { fx = X(futureNotes[0]); } catch(_) { fx = Infinity; }
-            if(fx <= cutoff) {
-                if(self.type === gt.STAMINA) dispatcher.trigger('key::miss');
-                tempo = 0;
-            } 
-
-            return pos + tempo;
-        }
-
-
-        // This is the graphical progress of the sheet music
-        // Think of the sheet music as an ever advancing stream that stops only when it must
-        this.noteStream$ = Rx.Observable.interval(34).skipUntil(attempts).takeUntil(ender)
-            .scan(advanceStream, MusicSheet.startNoteX)
-            .subscribe( 
-                p => MusicSheet.renderStaves(playQueue, self.key, p),
-                err => console.log('ERROR IN STREAM\n'+err),
-                () => MusicSheet.renderStaves(playQueue, self.key, calcStreamDelta(0))
-            );
-
-
-        // TODO move this into settings somewhere
-        let audibleMiss = true;
-        var pp$, pr$; // subscriptions
-        pr$ = playerReleases.takeUntil(ender).subscribe((key) => dispatcher.trigger('key::release', key));
-        if(audibleMiss) {
-            pp$ = attempts.subscribe((attempt) => {
-                key = attempt.success ? attempt.pressed : kb.keysById['0C'];
-                // FIXME no longer a distributed event, this is merely a function call on keyboard
-                dispatcher.trigger('key::press', key);
-                dispatcher.trigger('key::release', key);
-            });
-        } else pp$ = playerPresses.subscribe((key) => dispatcher.trigger('key::press', key));
-
-        // we want to unsubscribe from these
-        // if we take until ender, there's no warning sound
-        this.presses$ = pp$;
-        this.releases$ = pr$;
-
-        // trigger a relay attempt if we make it to 30!
-        this.relay$ = attempts.takeUntil(ender).filter((attempt) => attempt.success).map((_, n) => n+1).subscribe((n) => {
-            // TODO evaluate this decision to have three different points for change
-            // relay could be in advanceForever, and this success property literally just
-            // passes the buck to advanceStram (for graphics).
-            // there is a false dichotomy right now regarding array pop/shift for graphics
-            // and for gameplay.  advanceStream should only be for rendering if possible
-            // FIXME hack because scales uses the above justification to do logic in advanceForever
-            if(self.type !== gt.SCALES) futureNotes[0].status = 'success';
-            //futureNotes[0].status = 'success';
-            if(n % 30 === 0) dispatcher.trigger('game::relay');
-        });
-
-
-        function advanceForever() {
-            let tooFewNotes;
-
-            if(self.type === gt.SCALES) {
-
-                if(futureNotes.length) {
-                    if(futureNotes.length > 1) floatyNotes.push(futureNotes.shift()) // normal operation
-                    else if(futureNotes.length === 1) {
-                        // use if(floatyNotes.length === 7) to target the switch
-                        let justPlayed = futureNotes.pop(); // discard played note (maybe animate in the future)
-                        fluffyNotes.unshift(justPlayed);
-
-                        if(floatyNotes.length) futureNotes.unshift(floatyNotes.pop()) // activate in reverse
-                        else {
-                            // clear out padding notes
-                            let pl = fluffyNotes.length; // we are mutating the list
-                            for(let pi=0; pi<pl; pi++) {
-                                fluffyNotes.pop();
-                            }
-                            notegen.onNext(); // we are out of notes to play, get another scale
-                        }
-                    }
-                }
-
-            } else if(futureNotes.length <= 11) notegen.onNext();
-                //notegen.onNext(generate())
-            // advance the keyboard UI
-            if(self.pianoHints)
-                activateKey(futureNotes[0].key); 
-
-        }
-
-        // player needs a new key to play!
-        // This is a horrible breach of single responsibility
-        this.moveForward$ = attempts.takeUntil(ender).filter((attempt) => attempt.success)
-            .delay(100).do(clearAllKeys).subscribe( advanceForever, (err) => console.log(err))
-
-
-        this.note$ = sourceNotes.takeUntil(ender).subscribe( n => futureNotes.push(n) );
-
-        this.over$ = ender.subscribe(() => {
-            console.log('game ended.');
-            setNoProgress();
-            dispatcher.trigger('game::over');
-        });
-
         let tonic = this.key ? util.getScaleForKey(this.key)[0] : ['C', 3],
             startNote = new Note(tonic[0], tonic[1], this.key);
 
@@ -391,125 +209,141 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         scoreBoard.text('0');
 */
 
-            // REWRITE
+
+        var GAME_TIME = 500;
 
 
-            var GAME_TIME = 500; // 40;
-
-            let firstNote = (pq) => pq.floatyNotes.length ? pq.floatyNotes[0] : pq.futureNotes[0];
-
-            function resolvePressed(target, pressed) {
-                if(!pressed.qwerty) return pressed;
-                else if(keyboard.isSameNote(target, pressed)) return target;
-                else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
-            }
+        function resolvePressed(target, pressed) {
+            if(!pressed.qwerty) return pressed;
+            else if(keyboard.isSameNote(target, pressed)) return target;
+            else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
+        }
 
 
 
-            const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
+        const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
 
-            const TICKER_INTERVAL = 34;
+        const TICKER_INTERVAL = 34;
 
-            const ticker$ = Rx.Observable.interval(TICKER_INTERVAL, Rx.Scheduler.requestAnimationFrame).map(() => ({
-                time: Date.now(),
-                deltaTime: null
-            }))
-            .scan( (prev, cur) => ({
-                time: cur.time,
-                deltaTime: (cur.time, prev.time) / 1000
-            }));
-
-
-            let START_ARRAY = ['C','D','E','F','G','A','B'];
-
-            INITIAL_NOTES = {
-                startNoteX: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
-                notesToRender: {
-                    futureNotes: START_ARRAY.concat(START_ARRAY).map( n => new Note(n, 3)),
-                    faultyNotes: [],
-                    floatyNotes: [],
-                    fluffyNotes: [] // phantom, right-justification for reverse ATM
-                },
-                time: GAME_TIME,
-                score: 0
-            }
-
-            // udpdate the state of the world
-            const world$ = ticker$
-                .withLatestFrom(stop$)
-                .scan((state, [tick, stop]) => {
-
-                    let fut = state.notesToRender.futureNotes,
-                        target = fut[0].key;
-                    //let pressed = resolvePressed(fut[0].key, input.pkey); // TODO replace qwerty once again
-                    let numPressed = keyboard.numPressed();
-                    let success = numPressed === 1 && keyboard.isPressed(target);
-                    let newFut = success ? fut.slice(1) : fut;
-                    let score = success ? state.score + 1 : state.score
-                    let relay = success && score % 5 == 0;
-                   
-                    let successKeys = [], failureKeys = [];
-                    if(success) successKeys.push(target);
-                    else if(numPressed > 0) {
-                        keyboard.getPressedKeys().forEach(f => failureKeys.push(f));
-                    }
+        const ticker$ = Rx.Observable.interval(TICKER_INTERVAL, Rx.Scheduler.requestAnimationFrame).map(() => ({
+            time: Date.now(),
+            deltaTime: null
+        }))
+        .scan( (prev, cur) => ({
+            time: cur.time,
+            deltaTime: (cur.time, prev.time) / 1000
+        }));
 
 
-                    /* TODO add this back in once we are able to stop the note
-                    let cutoff = self.type === gt.STAMINA ? 
-                        MusicSheet.startNoteX - Width(newFut[0]) : MusicSheet.startNoteX + 10; // 10px buffer for aesthetics
-                    */
-                    let cutoff = MusicSheet.startNoteX - Width(newFut[0]);
+        let START_ARRAY = ['C','D','E','F','G','A','B'];
 
-                    let first = newFut[0];
-                    let curPos = success ? X(first) - self.streamSpeed - WidthAndPadding(first) : state.startNoteX - self.streamSpeed;
+        INITIAL_STATE = {
+            renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
+            notesToRender: {
+                futureNotes: START_ARRAY.concat(START_ARRAY).map( n => new Note(n, 3)),
+                faultyNotes: [],
+                floatyNotes: [],
+                fluffyNotes: [] // phantom, right-justification for reverse ATM
+            },
+            stopped: false,
+            time: GAME_TIME,
+            successKeys: [],
+            failureKeys: [],
+            score: 0,
+            missed: false
+        }
 
-                    return { 
-                        startNoteX: curPos,
-                        notesToRender: {
-                            futureNotes: newFut,
-                            floatyNotes: [],
-                            faultyNotes: [],
-                            fluffyNotes: []
-                        },
-                        stopped: !!stop,
-                        time: relay ? GAME_TIME : state.time - 1,
-                        successKeys: successKeys,
-                        failureKeys: failureKeys,
-                        score: score,
-                        relay: relay,
-                        missed: curPos < cutoff
-                    } 
-                }, INITIAL_NOTES);
+        // udpdate the state of the world
+        const world$ = ticker$
+            .withLatestFrom(stop$)
+            .scan((state, [tick, stop]) => {
 
+                // TODO tighten this loop
+                let n = state.notesToRender,
+                    future = n.futureNotes,
+                    floaty = n.floatyNotes,
+                    faulty = n.faultyNotes,
+                    score = state.score, 
+                    successKeys = [], failureKeys = []; // this turn only, 
+            
+                /* 
+                 * success/failure would be redundant - dervied from floaty,future - if we didnt' reset them each time 
+                 * status/stale could be reinstated if not an abuse of mutation, especially since it is still render-related
+                 * we may just cycle though on floaty and set stale to true when decrementing the counter we considered
+                 * for timing / duration mechanic.
+                 */
 
-            // this will render everything in update.
-            const game = Rx.Observable
-                .combineLatest(ticker$, world$)
-                .sample(TICKER_INTERVAL)
-                .subscribe(([ticker, world]) => {
-                    MusicSheet.renderStaves(world.notesToRender, self.key, world.startNoteX),
-                    updateProgressBar(world.time, GAME_TIME) 
+                if(X_infinity(future[0]) === Infinity) return state; // FIXME TODO HACK only testing bug
 
-                    // TODO  fix even if problem is still there, successKey should not "press", should be UI only, right?
-                    world.successKeys.forEach( k => {
-                        keyboard.successKey(k);
-                        keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                let target = future[0],
+                    numPressed = keyboard.numPressed(),
+                    playedTarget = numPressed === 1 && keyboard.isPressed(target.key);
+
+                if(playedTarget) {
+                    floaty.push(future.shift());
+                    score++;
+                    successKeys.push(target.key);
+                    faulty = []; // reset mistakes
+                } else if(numPressed > 0) {
+                    keyboard.getPressedKeys().forEach(failKey => {
+                        failureKeys.push(failKey)
+                        faulty.push( createNoteFromPianoKey(failKey) ); // TODO if PianoKey <==> Note relations exist, this will make more sense
                     });
-                    world.failureKeys.forEach( k => {
-                        keyboard.failKeyForever(k);
-                        keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
-                    });
+                }
 
-                    scoreBoard.text(''+world.score);
-                    if(world.time <= 0 || world.stopped || world.missed) game.dispose();
-                    if(!!world.relay) console.log('RELAY');
+
+                let nextNote = future[0],
+                    cutoff = MusicSheet.startNoteX - Width(nextNote), // if we restore at-your-own-pace, return startNote + someBuffer (10px)
+                    curPos = X_infinity(nextNote); // we don't want offscreen Vex notes to throw exception on eager player presses
+
+                if(floaty.length && X(floaty[0]) < MusicSheet.startNoteX-75) floaty.shift();
+
+                let firstNote = floaty.length ? floaty[0] : future[0];
+                renderPos = X_infinity(firstNote) - self.streamSpeed - WidthAndPadding(firstNote);
+
+
+                return { 
+                    renderStart: renderPos, // maybe move this entirely into render function...
+                    notesToRender: {
+                        futureNotes: future,
+                        floatyNotes: floaty,
+                        faultyNotes: faulty,
+                        fluffyNotes: []
+                    },
+                    stopped: !!stop,
+                    time: playedTarget && score % 5 == 0 ? GAME_TIME : state.time - 1, // relay 
+                    successKeys: successKeys,
+                    failureKeys: failureKeys,
+                    score: score,
+                    missed: curPos < cutoff // TODO remove, this can be derived elsewhere
+                } 
+            }, INITIAL_STATE);
+
+
+        // this will render everything in update.
+        const game = Rx.Observable
+            .combineLatest(ticker$, world$)
+            .sample(TICKER_INTERVAL)
+            .subscribe(([ticker, world]) => {
+                MusicSheet.renderStaves(world.notesToRender, self.key, world.renderStart),
+                updateProgressBar(world.time, GAME_TIME) 
+
+                // TODO move to duration notes, and delete this "set not pressed" hack from keyboard
+                world.successKeys.forEach( k => {
+                    keyboard.successKey(k);
+                    keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                });
+                world.failureKeys.forEach( k => {
+                    keyboard.failKeyForever(k);
+                    keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
                 });
 
-
+                scoreBoard.text(''+world.score);
+                if(world.time <= 0 || world.stopped || world.missed) game.dispose();
+                if(!!world.relay) console.log('RELAY');
+            });
 
             //renderSheetEmpty();
-        // END REWRITE
     }
 
 
