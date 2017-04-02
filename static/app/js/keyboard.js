@@ -123,7 +123,7 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
             }
         }
 
-        this.MIDDLE_C = this.keysById['3C'];
+        this.MIDDLE_C = this.keysById['4C'];
     }
 
 

@@ -101,7 +101,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 //  we may have problems here
                 //let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => (keyboard.keysById['3'+noteName]));
-                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').do(n => console.log('note='+n)).map(noteName => (keyboard.keysById['3'+noteName])).do(pk => console.log('pianoKey='+pk.id));
+                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').do(n => console.log('note='+n)).map(noteName => (keyboard.keysById['4'+noteName])).do(pk => console.log('pianoKey='+pk.id));
 
                 let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
                 let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);

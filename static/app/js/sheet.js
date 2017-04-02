@@ -72,7 +72,6 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         stave.setContext(context).draw();
         stave.setNoteStartX(pos);
 
-        // FIXME note that octave id is not zero based in vexflow (3C vs C/4 for middle c)
         // color the note appropriately (active / modifier hints)
         let futureVexNotes = notes.futureNotes.slice(0, 8).map( n => n.vexNote );
         if(futureVexNotes.length) {

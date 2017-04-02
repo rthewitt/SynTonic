@@ -60,18 +60,18 @@ define(['vexflow'], function(Vex) {
         return notes.map( (note, idx) => [ note, octaves[idx] ] );
     }
 
-    // TODO move this cruft into keyboard, add octave, get rid of octave # mismatch between HTML and vex
+    // TODO move this cruft into keyboard, add octave
     // FIXME this only allows treble cleff
     // TODO will this ever work with duration? likely not...
     function getVexNoteForPianoKey(pKey) {
         let octave = pKey.id.replace(pKey.note, '');
         let vexNoteName = pKey.note.replace('s', '#');
-        return new Vex.Flow.StaveNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave)+1)], duration: "q", auto_stem: true });
+        return new Vex.Flow.StaveNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave))], duration: "q", auto_stem: true });
     }
     function getGhostNoteForPianoKey(pKey) {
         let octave = pKey.id.replace(pKey.note, '');
         let vexNoteName = pKey.note.replace('s', '#');
-        return new Vex.Flow.GhostNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave)+1)], duration: "q", auto_stem: true });
+        return new Vex.Flow.GhostNote({clef: "treble", keys: [''+vexNoteName+'/'+(parseInt(octave))], duration: "q", auto_stem: true });
     }
 
     return {

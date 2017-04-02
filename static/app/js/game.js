@@ -15,12 +15,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
     // this is a seprate function only to remind me to do the id adjustment and key <=> note binding, but then it would be key <=> notes[], right?
     // FIXME this enters the function as a sharp when I press a flat...
     function createNoteFromPianoKey(pianoKey) {
-        // TODO align these octave IDs - there is no need for strings or double zeros
-        if(pianoKey.octaveId == '00') {
-            alert('TODO align octaveIds, HTML, and Vex');
-            throw Exception('TODO');
-        }
-        return new Note(pianoKey.note, parseInt(pianoKey.octaveId)); // no keysig, because keysig on the constructor modifies the note based on lookup table, to "simplify" generation.
+        return new Slot(pianoKey.note, parseInt(pianoKey.octaveId)); // no keysig, because keysig on the constructor modifies the note based on lookup table, to "simplify" generation.
     }
 
     // stub so that our API is not confusing (vexNotes vs Note Notes)
@@ -47,10 +42,10 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
      // Note: object to be rendered on staff
      // has pointer to relevant key
      // octave is coerced to string so can be int/string. This allows 00 to match current HTML
-    function Note(noteName, octave, keysig) {
+    function Slot(noteName, octave, keysig) {
         let VF = Vex.Flow;
         this.status = null;
-        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/'+(octave+1)], duration: 'q', auto_stem: true });
+        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: [noteName.replace('s', '#')+'/'+octave], duration: 'q', auto_stem: true });
 
         let keySpec = !!keysig ? VF.keySignature.keySpecs[keysig] : null;
 
@@ -110,7 +105,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         let scale = util.getScaleForKey(this.key);
         var self = this;
         return Rx.Observable.fromArray(scale) 
-            .map( n_o  => new Note(n_o[0], n_o[1], self.key)).do( n => {
+            .map( n_o  => new Slot(n_o[0], n_o[1], self.key)).do( n => {
                 n.vexNote.keyProps.forEach( k=> {
                     k.noStyle = true;
                 });
@@ -134,7 +129,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             noteName += Math.random() < 0.5 ? 's' : 'b';
         }
 
-        return Rx.Observable.just(new Note(noteName, octave, this.key));
+        return Rx.Observable.just(new Slot(noteName, octave, this.key));
     }
 
 
@@ -201,7 +196,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                 for(let i=0; i<n; i++) requested.push(generate());
                 return requested[0].merge.apply(requested.slice(1));
             }
-            throw Exception('Cannot generate from thrusted value='+thrust+'of type '+(typeof thrust));
+            throw 'Cannot generate from thrusted value='+thrust+'of type '+(typeof thrust);
         });
 
         let tonic = this.key ? util.getScaleForKey(this.key)[0] : ['C', 3],
@@ -249,7 +244,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         INITIAL_STATE = {
             renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
             notesToRender: {
-                futureNotes: START_ARRAY.concat(START_ARRAY).map( n => new Note(n, 3)),
+                futureNotes: START_ARRAY.concat(START_ARRAY).map( n => new Slot(n, 4)),
                 faultyNotes: [],
                 floatyNotes: [],
                 fluffyNotes: [] // phantom, right-justification for reverse ATM
