@@ -12,6 +12,8 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         progressBar;
 
 
+    // this is a seprate function only to remind me to do the id adjustment and key <=> note binding, but then it would be key <=> notes[], right?
+    // FIXME this enters the function as a sharp when I press a flat...
     function createNoteFromPianoKey(pianoKey) {
         // TODO align these octave IDs - there is no need for strings or double zeros
         if(pianoKey.octaveId == '00') {
@@ -62,9 +64,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             let acc = self.vexNote.keyProps[i].accidental;
             if(!!acc) self.vexNote.addAccidental(i, new VF.Accidental(acc));
 
-            // if there's a better (vexflow) way to do this, I don't know of it
-            // we don't want to set render properities outside of render functions
-            // so setting and forgetting the style is inappropriate
+            // we do NOT pass in keysig when begetting a note from user input
+            // so this shifting is safe, but perhaps should be moved outside of the constructor.
+            // more importantly, does it make sense to EVER pass in C when I want C#/Cb, or was
+            // that a hack because I added keysigs and didn't want to change note generation from 'A','B','C'.
+            // FIXME If this is a hack, move it out. Derive the correct keyId from futureNotes according to keysig
+            // the constructor should be straightforward, only does one thing.  This is likely why I had stubNote
+            // in place to start with.
             if(!!keySpec && !!keySpec.acc) {
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
                 if(modifiedNotes.indexOf(noteName) !== -1) {
@@ -237,6 +243,9 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let START_ARRAY = ['C','D','E','F','G','A','B'];
 
+        // TODO simply construct INITIAL_STATE from passed options
+        // for song, set futureNotes whole as we do here
+        // set initial speed, etc
         INITIAL_STATE = {
             renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
             notesToRender: {
