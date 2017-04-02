@@ -12,12 +12,6 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         progressBar;
 
 
-    // this is a seprate function only to remind me to do the id adjustment and key <=> note binding, but then it would be key <=> notes[], right?
-    // FIXME this enters the function as a sharp when I press a flat...
-    function createNoteFromPianoKey(pianoKey) {
-        return new Slot(pianoKey.note, parseInt(pianoKey.octaveId)); // no keysig, because keysig on the constructor modifies the note based on lookup table, to "simplify" generation.
-    }
-
     // stub so that our API is not confusing (vexNotes vs Note Notes)
     // will go away if and when we use "inheritance" - still hesitant on that
     function stubNote(pianoKey, flavor) {
@@ -49,7 +43,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
 
         let keySpec = !!keysig ? VF.keySignature.keySpecs[keysig] : null;
 
-        let pKeyId = ''+octave+noteName;
+        let noteId = ''+octave+noteName;
 
         var self = this;
         this.vexNote.keys.forEach( (n,i) => {
@@ -69,13 +63,13 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
             if(!!keySpec && !!keySpec.acc) {
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
                 if(modifiedNotes.indexOf(noteName) !== -1) {
-                    pKeyId = '' + octave + noteName + (keySpec.acc === '#' ? 's' : 'b');
+                    noteId = '' + octave + noteName + (keySpec.acc === '#' ? 's' : 'b');
                     isModified = true;
                 }
             }
             self.vexNote.keyProps[i].signatureKeyHint = isModified;
         });
-        this.key = keyboard.keysById[pKeyId];
+        this.key = keyboard.notesById[noteId].pianoKey;
     }
 
 
@@ -210,16 +204,7 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
         scoreBoard.text('0');
 */
 
-
         var GAME_TIME = 500;
-
-
-        function resolvePressed(target, pressed) {
-            if(!pressed.qwerty) return pressed;
-            else if(keyboard.isSameNote(target, pressed)) return target;
-            else return keyboard.keysById[target.id.replace(target.note, pressed.note)];
-        }
-
 
 
         const stop$ = Rx.Observable.fromEvent(gameStop, 'click').startWith(false);
@@ -289,9 +274,11 @@ define(['jquery', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], funct
                     successKeys.push(target.key);
                     faulty = []; // reset mistakes
                 } else if(numPressed > 0) {
-                    keyboard.getPressedKeys().forEach(failKey => {
-                        failureKeys.push(failKey)
-                        faulty.push( createNoteFromPianoKey(failKey) ); // TODO if PianoKey <==> Note relations exist, this will make more sense
+                    // TODO consider sending a callback to kb.eachPressedKey or something
+                    keyboard.getPressed().forEach( pressed => {
+                        failureKeys.push(pressed.key)
+                        if(pressed.fromNote) faulty.push( new Slot(pressed.fromNote, target.key.octave) ); 
+                        else faulty.push( new Slot(pressed.key.baseNote.name, target.key.octave) ); // TODO get key for keysig, will feel/be more accurate for player trying to learn
                     });
                 }
 

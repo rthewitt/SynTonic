@@ -1,184 +1,162 @@
-define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatcher, _, audio) {
+define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($, dispatcher, _, audio, util) {
 
-    var noteNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
-    var octaveIds = ['00','0','1','2','3','4','5','6','7']; // string on purpose 
-
-    let htmlNoteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
-    let keyAliases = {
-        'C': ['Bs'],
+    const octaveIds = ['0','1','2','3','4','5','6','7','8']; // string on purpose // const != immutable 
+    const htmlNoteNames = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B']; // const != immutable
+    const noteAliases = Object.freeze({
+        'C':  ['Bs'],
         'Cs': ['Db'],
+        'Db': ['Cs'],
+        'D':  [],
         'Ds': ['Eb'],
-        'E': ['Fb'],
-        'F': ['Es'],
+        'Eb': ['Ds'],
+        'E':  ['Fb'],
+        'Fb': ['E' ],
+        'F':  ['Es'],
+        'Es': ['F' ],
         'Fs': ['Gb'],
+        'Gb': ['Fs'],
+        'G':  [],
         'Gs': ['Ab'],
+        'Ab': ['Gs'],
+        'A':  [],
         'As': ['Bb'],
-        'B': ['Cb']
-    };
+        'Bb': ['As'],
+        'B':  ['Cb'],
+        'Cb': ['B' ]
+    });
 
-    function createKeyboardLayout() {
-        var firstOctave = {
-            id: '00',
-            keys: [{
-                    id: '00A',
-                    octaveId: '00',
-                    note: 'A'
-                }, {
-                    id: '00As',
-                    octaveId: '00',
-                    note: 'As'
-                }, {
-                    id: '00B',
-                    octaveId: '00',
-                    note: 'B'
-                }]
-        };
+    var allNotes = [];
+    octaveIds.forEach( oId => {
+        allNotes = allNotes.concat(
+            util.allNoteNames.map(n => ({ id: ''+oId+n, name: n, octave: oId }))
+        );
+    });
 
-        var lastOctave = {
-            id: '7',
-            keys: [{
-                    id: '7C',
-                    octaveId: '7',
-                    note: 'C'
-                }]
-        };
+    var notesById = _.indexBy(allNotes, 'id');
 
-        function octave(idx) {
-            let oId = ''+idx;
-            let O = { id: oId, keys: [] };
-            for(let k=0; k < htmlNoteNames.length; k++) {
-                let name = htmlNoteNames[k];
-                O.keys.push({ 
-                    id: oId + name,
-                    note: name,
-                    octaveId: oId,
-                });
-            }
-            return O;
-        }
 
-        var octaves = [ firstOctave ];
 
-        for(var o=0; o < 7; o++) {
-            octaves.push(octave(o));
-        }
-        octaves.push(lastOctave);
-        return octaves;
+    // TODO remove string based ids for octaves
+    function PianoKey(noteId) {
+        let baseNote = notesById[noteId];
+
+        this.id = 'pk-'+baseNote.id;
+        this.octave = baseNote.octave;
+        this.notes = [];
+        this.baseNote = baseNote; // easy id retrieval
+        this.addNote(baseNote);
+
+        let name = baseNote.name, oId = this.octave;
+        let aliasNotes = noteAliases[name].map( alias => {
+            let shiftDown = name === 'C' && alias === 'Bs' && oId !== '0';
+            let shiftUp = name === 'B' && alias === 'Cb';
+            let octaveId = shiftDown ? octaveIds.indexOf(oId)-1 : shiftUp ? octaveIds.indexOf(oId)+1 : oId;
+            return notesById[''+octaveId+alias];
+        });
+        aliasNotes.forEach(n => this.addNote(n));
+    }
+
+    PianoKey.prototype.addNote = function(note) {
+        if(!!note.pianoKey) throw "Note already accounted for! note="+note.id+" note.pianoKey="+note.pianoKey.id+" thisKey="+this.id;
+        note.pianoKey = this;
+        if(this.notes.indexOf(note) !== -1) throw "this key ("+this.id+") already contains note "+note.id;
+        this.notes.push(note);
     }
 
 
+
     function Keyboard(opts) {
-        var self = this;
 
         this.midiOut = null;
         this.output = false; // TODO make this an actual MIDI output, not boolean
-
-        // TODO make keyboard respond to settings change just like game does (will)
-        this.silent = false;
+        this.silent = false; // TODO
 
         this.numKeys = opts.numKeys || 88;
         this.min = opts.min || 21;
         this.max = opts.max || 108;
         this.blacklist = opts.blacklist || [];
 
+        // a way to cross reference from MIDI notes (index)
+        const firstOctave = {
+            id: '0',
+            keys: ['0A','0As','0B'].map( id => new PianoKey(id) )
+        };
 
-        this.noteNames = noteNames;
+        const lastOctave = {
+            id: '8',
+            keys: [ new PianoKey('8C') ]
+        };
 
-        // only 88-keys for now
-        this.octaves = createKeyboardLayout();
-        // a way to cross reference from MIDI notes
-        this.keys = _.flatten( _.map(this.octaves, function(o) { return o.keys; }));
+        let octaves = [ firstOctave ];
+        octaves = octaves.concat(octaveIds.slice(1,7).map( oId => 
+            ({
+                id: oId,
+                keys: htmlNoteNames.map( name => new PianoKey(''+oId+name) )
+            })
+        ));
+        octaves.push(lastOctave);
 
-        this.keyState = {}
-
-        // ensure each note has an element to play with
-        // because ids from the game may not match up to the
-        // unique id used for HTML
-        this.keys.forEach( key => {
+        this.octaves = octaves;
+        this.keys = _.flatten( octaves.map( o => o.keys )).map(key => {
             key.$el = $('#'+key.id);
-            // setup state (pressed / not pressed)
-            self.keyState[key.id] = false;
+            return Object.freeze(key)
+        });
+        this.keysById = Object.freeze(_.indexBy(this.keys, 'id'));
+        this.notesById = Object.freeze(notesById); // TODO FIXME this is still not idempotent in the case of two keyboards, must clone notes during construction.
+
+        // updateable state of which keys are currently pressed
+        var keyState = {};
+        this.keys.forEach( key => {
+            keyState[key.id] = false; 
         });
 
-        // ...and a way to reference keys directly
-        this.keysById = new Object; 
-        _.each(this.keys, function(keyObj) {
-            self.keysById[ keyObj.id ] = keyObj;
-        });
-
-
-        // ... even if we use an alternate name!
-        // WARNING: there may be keys for which there are no notes
-        for(let k in keyAliases) {
-            for(let kprime of keyAliases[k]) {
-                for(let o of octaveIds) {
-                    if(!!this.keysById[o+k]) {
-                        let oprime = o;
-                        if(k === 'C' && kprime ==='Bs' && o !== '00') oprime = octaveIds[octaveIds.indexOf(o)-1];
-                        else if(k === 'B' && kprime ==='Cb') oprime = octaveIds[octaveIds.indexOf(o)+1];
-                        //console.log("SHIFTING "+this.keysById[o+k].id + " to "+oprime+kprime);
-                        this.keysById[oprime+kprime] = this.keysById[o+k];
-                    }
-                }
-            }
-        }
-
-        this.MIDDLE_C = this.keysById['4C'];
+        this.keyState = keyState;
+        this.MIDDLE_C = this.notesById['4C'].pianoKey;
     }
 
-
-    Keyboard.prototype.isSameNote = function(k1, k2) {
-        k1 = k1.note, k2 = k2.note;
-        if(k1 == k2) return true;
-        for(let k in keyAliases) {
-            for(let kprime of keyAliases[k]) {
-                if((k1 == k && k2 == kprime) 
-                        || (k2 == k && k1 == kprime))
-                    return true
-            }
-        }
-        return false;
-    }
 
     // ===================
     // MIDI Functions
     // ===================
     
 
-    Keyboard.prototype.playNote = function(key, duration) {
+    // FIXME note.id may not map to a tone, we should do note.pianoKey.baseNote or dictionary lookup for tones
+    Keyboard.prototype.playNote = function(note, duration) {
+        //console.log('playing tone '+note.id);
         if(this.output) {
             console.log('MIDI OUTPUT');
-            var midiNote = this.keys.indexOf(key)+this.min; // needs wrapper function
+            var midiNote = this.keys.indexOf(note.pianoKey)+this.min; // notes is larger than keys, so we must use correct index
             sendMidiNote.call(this, midiNote, duration)
         } else {
-            audio.playSound('tone-'+key.id); 
+            audio.playSound('tone-'+note.id); 
             // stop sound if requested
             if(!!duration) {
                 setTimeout(function() {
-                    audio.stopSound('tone-'+key.id);
+                    audio.stopSound('tone-'+note.id);
                 }, duration);
             }
         }
     }
 
+    /* FIXME note.id may not map to a tone, see above. also function not used at this point.
     // These notes are played simultaneously (WARNING: approximate!!)
-    Keyboard.prototype.playNotes = function(keys, duration) {
+    Keyboard.prototype.playNotes = function(notes, duration) {
         if(this.output) {
             var self = this;
-            _.each(keys, function(key) {
-                var midiNote = self.keys.indexOf(key)+self.min; // needs wrapper function
+            _.each(notes, function(note) {
+                var midiNote = self.keys.indexOf(note.pianoKey)+self.min; // needs wrapper function
                 sendMidiNote.call(self, midiNote, duration)
             });
         } else {
             // play web audio
-            _.each(keys, function(key) {
-                audio.playSound('tone-'+key.id); 
+            _.each(notes, function(note) {
+                audio.playSound('tone-'+note.id); 
             });
             // hard stop if requested
             if(!!duration) {
                 setTimeout(function() {
-                    _.each(keys, function(key) {
-                        audio.stopSound('tone-'+key.id); 
+                    _.each(notes, function(note) {
+                        audio.stopSound('tone-'+note.id); 
                     });
                 }, duration);
             }
@@ -187,6 +165,7 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
     Keyboard.prototype.stopNote = function(key) {
     }
+    */
 
     // TODO get the output - how often to do this?
     function sendMidiNote( noteId, duration ) {
@@ -206,10 +185,13 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         return c;
     }
 
-    Keyboard.prototype.getPressedKeys = function() {
+    Keyboard.prototype.getPressed = function() {
+        return Object.values(this.keyState).filter(p => !!p);
+        /*
         let pressed = [];
         for(var k in this.keyState) if(this.keyState[k]) pressed.push(this.keysById[k]);
         return pressed;
+        */
     }
 
 
@@ -221,7 +203,6 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
         return this.keyState[keyId];
     }
 
-    // FIXME to handle the new scheme where id may not be in HTML, set $el or elem on key object during construction
     Keyboard.prototype.colorKey = function(key, clazz, duration) {
         key.$el.addClass(clazz);
         if(!!duration) setTimeout(function() {
@@ -230,8 +211,9 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
     }
 
 
-    Keyboard.prototype.pressKey = function(key) {
-        this.keyState[key.id] = true;
+    Keyboard.prototype.pressKey = function(key, pressInfo) {
+        this.keyState[key.id] = Object.freeze(pressInfo) 
+            || Object.freeze({ key: key, fromNote: false }); // TODO this looks like future complexity
         key.$el.addClass('pressed');
     }
 
@@ -264,23 +246,27 @@ define(['jquery', './dispatcher', 'underscore', './audio'], function($, dispatch
 
     Keyboard.prototype.successKey = function(key) {
         this.colorKey(key, 'success', 200);
-        if(!this.silent) this.playNote(key);
+        if(!this.silent) this.playNote(key.baseNote);
     };
 
 
     Keyboard.prototype.failKey = function(key) {
         this.colorKey(key, 'failure', 200);
-        if(!this.silent) this.playNote(this.keysById['0C']);
+        if(!this.silent) this.playNote(key.baseNote);
     };
 
 
     Keyboard.prototype.failKeyForever = function(key) {
-        this.pressKey(key);
         this.colorKey(key, 'failure');
-        if(!this.silent) this.playNote(this.keysById['0C']);
+        if(!this.silent) this.playNote(key.baseNote);
     };
 
 
+    // IMPORTANT: This is not idempotent, only once keyboard can be created.
+    // if we return an object from the module, we won't be able to accept
+    // user guidance on model / number of octaves, etc
+    // TODO FIXME make sure we clone notesById / allNotes instead of mutating them in place
+    
     // exports
     return Keyboard;
 });

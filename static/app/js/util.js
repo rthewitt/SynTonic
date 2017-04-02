@@ -1,6 +1,6 @@
 define(['vexflow'], function(Vex) {
 
-    var gameStates = {
+    const gameStates = {
         NOT_STARTED: 0,
         INPUT_CONTROL: 1,
         STARTED: 2,
@@ -10,7 +10,7 @@ define(['vexflow'], function(Vex) {
         names: ['NOT_STARTED', 'INPUT_CONTROL', 'STARTED', 'ANIMATING', 'WON', 'LOST']
     }; 
 
-    var gameTypes = {
+    const gameTypes = {
         FLOW: 0, // accuracy, perhaps relay
         SANDBOX: 1, // free training
         STAMINA: 2, // independent timing
@@ -21,9 +21,13 @@ define(['vexflow'], function(Vex) {
     };
 
 
-    var notesInOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    const notesInOrder = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
-    let notesForScale = new Array(
+    const allNoteNames = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 
+                          'As', 'Bs', 'Cs', 'Ds', 'Es', 'Fs', 'Gs', 
+                          'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'Fb', 'Gb'];
+
+    const notesForScale = new Array(
             ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'A'],
             ['B', 'C', 'D', 'E', 'F', 'G', 'A', 'B'],
             ['C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'],
@@ -32,7 +36,7 @@ define(['vexflow'], function(Vex) {
             ['F', 'G', 'A', 'B', 'C', 'D', 'E', 'F'],
             ['G', 'A', 'B', 'C', 'D', 'E', 'F', 'G']);
 
-    let octavesForScale = new Array(
+    const octavesForScale = new Array(
             [ 2,   2,   3,   3,   3,   3,   3,   3 ],
             [ 2,   3,   3,   3,   3,   3,   3,   3 ],
             [ 3,   3,   3,   3,   3,   3,   3,   4 ],
@@ -77,6 +81,8 @@ define(['vexflow'], function(Vex) {
     return {
         gameTypes: gameTypes,
         gameStates: gameStates,
+        notesInOrder: notesInOrder,
+        allNoteNames: allNoteNames,
         mirrorScale: mirrorScale,
         getScaleForKey: getScaleForKey,
         getVexNoteForPianoKey: getVexNoteForPianoKey,

@@ -99,26 +99,27 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 for(let combo in qkeys) MouseTrap.bind(combo, 
                         () => dispatcher.trigger('qwerty', qkeys[combo]));
 
-                //  we may have problems here
-                //let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').map(noteName => (keyboard.keysById['3'+noteName]));
-                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty').do(n => console.log('note='+n)).map(noteName => (keyboard.keysById['4'+noteName])).do(pk => console.log('pianoKey='+pk.id));
+                let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty')
+                    .map(noteName => ({ fromNote: noteName, key: keyboard.notesById['4'+noteName].pianoKey }));
 
-                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').map(ev => keyboard.keysById[ev.target.id]);
-                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => keyboard.keysById[ev.target.id]);
+                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').do(ev=>console.log(ev.target.id)).map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
+                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
 
                 let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
-                let midiKeyDowns = midiMessages.filter((data) => data.command === 'on').pluck('key');
-                let midiKeyUps = midiMessages.filter((data) => data.command === 'off').pluck('key');
+                let midiKeyDowns = midiMessages.filter( m => m.command === 'on');
+                let midiKeyUps = midiMessages.filter( m => m.command === 'off');
 
+                // TODO pressKey/releaseKey only exists here - move this into keyboard so that it functions as an adapter. 
+                // Then disable keyboard from this file when we need to hijack user input.  Or... force dispose and reconnect through "detach", "connect" methods
                 Rx.Observable.merge(
                         Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses)
-                            .map(key => ({ pkey: key, action: 1 })),
+                            .map(press => ({ key: press.key, action: 1, fromNote: press.fromNote || false })),
 
                         Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(75))
-                            .map(key => ({ pkey: key, action: 0 }))
+                            .map(rel => ({ key: rel.key, action: 0, fromNote: rel.fromNote || false }))
                     ).subscribe( input => {
-                        if(input.action > 0) keyboard.pressKey(input.pkey);
-                        else keyboard.releaseKey(input.pkey);
+                        if(input.action > 0) keyboard.pressKey(input.key, input);
+                        else keyboard.releaseKey(input.key, input);
                     });
             }
 
