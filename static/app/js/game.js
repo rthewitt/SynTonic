@@ -11,30 +11,22 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         scoreBoard, 
         progressBar;
 
-     // Note: object to be rendered on staff
-     // has pointer to relevant key
-     // octave is coerced to string so can be int/string. This allows 00 to match current HTML
-    function Slot(noteNames, octave, keysig) {
+    function Slot(notes, keysig) {
         let VF = Vex.Flow;
-        let vexNoteKeys = noteNames.map(n => n.replace('s','#')+'/'+octave);
+        let vexNoteKeys = notes.map(n => n.name.replace('s','#')+'/'+n.octave);
         this.vexNote = new VF.StaveNote({ clef: 'treble', keys: vexNoteKeys, duration: 'q', auto_stem: true });
 
-        /*
-        this.notes = noteNames.map(n => keyboard.notesById[''+octave+n]);
-        this.noteProps = noteNames.map((n,i)=>({})); 
-        */
-        this.notes = [];
+        this.notes = notes;
         this.noteProps = [];
 
         let keySpec = !!keysig ? VF.keySignature.keySpecs[keysig] : null;
-        noteNames.forEach( (n, i) => {
-            this.notes.push(keyboard.notesById[''+octave+n]); // are you telling me this changes below based on accidental?
+        notes.forEach( (n, i) => {
             let acc = this.vexNote.keyProps[i].accidental;
             if(acc) this.vexNote.addAccidental(i, new VF.Accidental(acc));
             let isModified = false;
             if(!!keySpec && !!keySpect.acc) {
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
-                isModified = modifiedNotes.indexOf(n) !== -1;
+                isModified = modifiedNotes.indexOf(n.name) !== -1;
             }
             this.noteProps.push({ signatureKeyHint: isModified });
         });
@@ -67,7 +59,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         let scale = util.getScaleForKey(this.keySig);
         var self = this;
         return Rx.Observable.fromArray(scale) 
-            .map( n_o  => new Slot(n_o[0], n_o[1], self.keySig)).do( n => {
+            .map( n_o  => new Slot(keyboard.notesById[''+n_o[1]+n_o[0]], self.keySig)).do( n => {
                 n.vexNote.keyProps.forEach( k=> {
                     k.noStyle = true;
                 });
@@ -91,7 +83,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             noteName += Math.random() < 0.5 ? 's' : 'b';
         }
 
-        return Rx.Observable.just(new Slot(noteName, octave, this.keySig));
+        return Rx.Observable.just(new Slot(keyboard.notesById[''+octave+noteName], this.keySig));
     }
 
 
@@ -188,8 +180,8 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         }));
 
 
-        //let START_ARRAY = [['C'],['D'],['E'],['F'],['G'],['A'],['B']];
-        let START_ARRAY = [['C', 'E'],['D'],['C','E'],['F'],['G'],['A'],['B']];
+        //let START_ARRAY = [['4C'],['4D'],['4E'],['4F'],['4G'],['4A'],['4B']];
+        let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
 
         // TODO simply construct INITIAL_STATE from passed options
         // for song, set futureSlots whole as we do here
@@ -197,8 +189,9 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         INITIAL_STATE = {
             renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
             notesToRender: {
-                futureSlots: START_ARRAY.concat(START_ARRAY).map( notes => new Slot(notes, 4)),
-                pastSlots: []
+                futureSlots: START_ARRAY.concat(START_ARRAY).map( noteIds => new Slot(noteIds.map( id => keyboard.notesById[id]))),
+                pastSlots: [],
+                badSlots: []
             },
             successKeys: [],
             failureKeys: [],
@@ -217,6 +210,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let n = state.notesToRender,
                     future = n.futureSlots,
                     past = n.pastSlots,
+                    bad = n.badSlots,
                     score = state.score; 
             
                 // why does it go from 75 to infinity immediately?
@@ -230,6 +224,16 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let pressedKeys = allPressed.map(p => p.key ? 
                         p.key : keyboard.notesById['4'+p.fromNote].pianoKey); // assumes qwerty
 
+                // This is... interesting. We still use an array / queue, but really only allowing a single
+                // entry at this point by shifting on success.
+                let failureKeys = _.difference(pressedKeys, targetKeys);
+                if(failureKeys.length) {
+                    let mistakes = new Slot(failureKeys.map(k => k.baseNote)); // TODO handle fromNote / qwerty
+                    bad.shift();
+                    bad.push(mistakes);
+                }
+                    
+
                 let playedAll = true;
                 targetKeys.forEach( ( target, ti ) => {
                     let played = pressedKeys.some( k => k === target);
@@ -237,14 +241,11 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     if(!played) playedAll = false;
                 });
 
-                
-                slot.mistakes = _.difference( [], [] ); // pressed, targets ) - mapped to notes, but intended if qwerty?
-
                 if(playedAll) {
                     score++;
                     past.push(future.shift());
+                    bad.shift();
                 }
-
 
                 let nextSlot = future[0], // next slot to play, could be same as slot
                     cutoff = MusicSheet.startNoteX - Width(nextSlot), // if we restore at-your-own-pace, return startNote + someBuffer (10px)
@@ -258,17 +259,18 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let successKeys = slot.noteProps.map( (props, i) => !!props.played ? slot.notes[i].pianoKey : null ).filter(i => i !== null); // can be optimized above
 
                 return { 
-                    renderStart: renderPos, // maybe move this entirely into render function...
+                    renderStart: renderPos,
                     notesToRender: {
                         futureSlots: future,
-                        pastSlots: past
+                        pastSlots: past,
+                        badSlots: bad
                     },
                     stopped: !!stop,
                     time: playedAll && score % 5 == 0 ? GAME_TIME : state.time - 1, // relay 
                     successKeys: successKeys,
-                    failureKeys: [],
+                    failureKeys: failureKeys,
                     score: score,
-                    missed: curPos < cutoff // TODO remove, this can be derived elsewhere
+                    missed: curPos < cutoff
                 } 
             }, INITIAL_STATE);
 
@@ -287,7 +289,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
                 });
                 world.failureKeys.forEach( k => {
-                    keyboard.failKeyForever(k);
+                    keyboard.failKey(k);
                     keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
                 });
 

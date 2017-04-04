@@ -35,6 +35,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         let emptyPlayQueue = {
             futureSlots: [],
             pastSlots: [],
+            badSlots: []
         };
         renderStaves(emptyPlayQueue, keySig);
     }
@@ -89,10 +90,9 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         }
 
         // we are adding a rest for each success note still displayed to format correctly
-        //let faultyVexNotes = notes.faultyNotes.map( n => n.vexNote );
-        let faultyVexNotes = [].map( n => n.vexNote );
+        let faultyVexNotes = notes.badSlots.map( n => n.vexNote );
         faultyVexNotes.forEach( (vn, vi) => vn.setStyle(failureStyle) );
-        if(faultyVexNotes.length) faultyVexNotes = notes.pastNotes.map(getQuarterRest).concat(faultyVexNotes);
+        if(faultyVexNotes.length) faultyVexNotes = notes.pastSlots.map(getQuarterRest).concat(faultyVexNotes);
 
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
@@ -106,10 +106,9 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         // we are NOT joining voices, which ONLY handles accidental collision avoidence
         // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
         // I think this means in the past faulty notes would force the notes to re-arrange. We should experiment again
-        //let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
-        let formatter = new VF.Formatter().format([futureVoice], 700);
+        let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
         futureVoice.draw(context, stave);
-        //faultyVoice.draw(context, stave);
+        faultyVoice.draw(context, stave);
     }
 
     return {
