@@ -100,7 +100,6 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         () => dispatcher.trigger('qwerty', qkeys[combo]));
 
                 let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty')
-                    //.map(noteName => ({ fromNote: noteName, key: null })); // TODO figure out how to move this down the line while still pressing the key...
                     .map(noteName => ({ fromNote: noteName, key: keyboard.notesById['4'+noteName].pianoKey }));
 
                 let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').do(ev=>console.log(ev.target.id)).map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
@@ -116,7 +115,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses)
                             .map(press => ({ key: press.key, action: 1, fromNote: press.fromNote || false })),
 
-                        Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(75))
+                        Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(200))
                             .map(rel => ({ key: rel.key, action: 0, fromNote: rel.fromNote || false }))
                     ).subscribe( input => {
                         if(input.action > 0) keyboard.pressKey(input.key, input);

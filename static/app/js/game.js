@@ -221,14 +221,11 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
                 let targetKeys = slot.notes.map(n => n.pianoKey);
 
-                let pressedKeys = allPressed.map(p => p.key ? 
-                        p.key : keyboard.notesById['4'+p.fromNote].pianoKey); // assumes qwerty
-
                 // This is... interesting. We still use an array / queue, but really only allowing a single
                 // entry at this point by shifting on success.
-                let failureKeys = _.difference(pressedKeys, targetKeys);
+                let failureKeys = _.difference(allPressed.map( p => p.key), targetKeys);
                 if(failureKeys.length) {
-                    let mistakes = new Slot(failureKeys.map(k => k.baseNote)); // TODO handle fromNote / qwerty
+                    let mistakes = new Slot(failureKeys.map(k => k.baseNote));
                     bad.shift();
                     bad.push(mistakes);
                 }
@@ -236,7 +233,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
                 let playedAll = true;
                 targetKeys.forEach( ( target, ti ) => {
-                    let played = pressedKeys.some( k => k === target);
+                    let played = allPressed.some( p => p.key === target);
                     slot.noteProps[ti].played = played;
                     if(!played) playedAll = false;
                 });

@@ -68,13 +68,18 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
             futureVexNotes.forEach( (vn,vi) => { // note, index
                 if(vi === 0) vn.setStyle(activeStyle);
                 vn.keyProps.forEach( (n,i) => {
-                    if(n.signatureKeyHint) {
-                        vn.setKeyStyle(i, vi === 0 ? activeModStyle : modStyle);
+                    if(notes && notes.futureSlots[vi].noteProps[i].played) {
+                        console.log('partial');
+                        vn.setKeyStyle(i, n.signatureKeyHint ? successModStyle : successStyle);
                     }
+                    else if(n.signatureKeyHint) vn.setKeyStyle(i, vi === 0 ? activeModStyle : modStyle);
+                    else vn.setKeyStyle(i, vi === 0 ? activeStyle : noStyle); // yes, explicitly setting no style now, so sue me.
                 });
             });
         }
 
+        // Currently shows all past notes as success - we may want to allow failed attempts
+        // to pass on unearned, in the case where single miss is not the end of the game.
         let pastVexNotes = notes.pastSlots.map( n => n.vexNote );
         if(pastVexNotes.length) {
             pastVexNotes.forEach( (vn, vi) => {
@@ -107,8 +112,8 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
         // I think this means in the past faulty notes would force the notes to re-arrange. We should experiment again
         let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
-        futureVoice.draw(context, stave);
         faultyVoice.draw(context, stave);
+        futureVoice.draw(context, stave);
     }
 
     return {
