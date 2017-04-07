@@ -69,7 +69,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
                 if(vi === 0) vn.setStyle(activeStyle);
                 vn.keyProps.forEach( (n,i) => {
                     if(notes && notes.futureSlots[vi].noteProps[i].played) {
-                        console.log('partial');
+                        console.log('partial played');
                         vn.setKeyStyle(i, n.signatureKeyHint ? successModStyle : successStyle);
                     }
                     else if(n.signatureKeyHint) vn.setKeyStyle(i, vi === 0 ? activeModStyle : modStyle);

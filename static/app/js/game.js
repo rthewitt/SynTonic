@@ -1,5 +1,7 @@
 define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, _, Rx, Vex, MusicSheet, dispatcher, util) {
 
+    const DURATIONS = { 'q': 10 }
+
     const MODIFIED_NOTES = {
         '#': ['F', 'C', 'G', 'D', 'A', 'E', 'B'],
         'b': ['B', 'E', 'A', 'D', 'G', 'C', 'F']
@@ -13,8 +15,9 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
     function Slot(notes, keysig) {
         let VF = Vex.Flow;
+        let duration = 'q'; // hardcoded for now
         let vexNoteKeys = notes.map(n => n.name.replace('s','#')+'/'+n.octave);
-        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: vexNoteKeys, duration: 'q', auto_stem: true });
+        this.vexNote = new VF.StaveNote({ clef: 'treble', keys: vexNoteKeys, duration: duration, auto_stem: true });
 
         this.notes = notes;
         this.noteProps = [];
@@ -28,7 +31,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
                 isModified = modifiedNotes.indexOf(n.name) !== -1;
             }
-            this.noteProps.push({ signatureKeyHint: isModified });
+            this.noteProps.push({ duration: duration, playCount: 0, signatureKeyHint: isModified });
         });
     }
 
@@ -231,15 +234,25 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 }
                     
 
+                let successKeys = [];
                 let playedAll = true;
                 targetKeys.forEach( ( target, ti ) => {
+                    // TODO played too long?  Decide strategy
                     let played = allPressed.some( p => p.key === target);
-                    slot.noteProps[ti].played = played;
-                    if(!played) playedAll = false;
+                    let props = slot.noteProps[ti];
+                    if(played) {
+                        successKeys.push(slot.notes[ti].pianoKey);
+                        // I think ignoreState was the problem - I just commented it out TODO delete it once working
+                        if(++props.playCount < DURATIONS[props.duration]) playedAll = false;
+                    } else {
+                        console.log('nope');
+                        playedAll = false;
+                    }
                 });
 
                 if(playedAll) {
                     score++;
+                    successKeys.forEach( k => keyboard.ignoreKeyState(k));
                     past.push(future.shift());
                     bad.shift();
                 }
@@ -253,7 +266,6 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let firstSlot = past.length ? past[0] : future[0];
                 renderPos = X_infinity(firstSlot) - self.streamSpeed - WidthAndPadding(firstSlot);
 
-                let successKeys = slot.noteProps.map( (props, i) => !!props.played ? slot.notes[i].pianoKey : null ).filter(i => i !== null); // can be optimized above
 
                 return { 
                     renderStart: renderPos,
@@ -262,6 +274,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                         pastSlots: past,
                         badSlots: bad
                     },
+                    playedAll: playedAll,
                     stopped: !!stop,
                     time: playedAll && score % 5 == 0 ? GAME_TIME : state.time - 1, // relay 
                     successKeys: successKeys,
@@ -283,11 +296,11 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 // TODO move to duration notes, and delete this "set not pressed" hack from keyboard
                 world.successKeys.forEach( k => {
                     keyboard.successKey(k);
-                    keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                    if(world.playedAll) keyboard.clearKey(k); // state hack to allow presses longer than update interval
                 });
                 world.failureKeys.forEach( k => {
                     keyboard.failKey(k);
-                    keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
+                    //keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
                 });
 
                 scoreBoard.text(''+world.score);

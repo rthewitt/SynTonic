@@ -102,8 +102,8 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 let qwertyPresses = Rx.Observable.fromEvent(dispatcher, 'qwerty')
                     .map(noteName => ({ fromNote: noteName, key: keyboard.notesById['4'+noteName].pianoKey }));
 
-                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').do(ev=>console.log(ev.target.id)).map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
-                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
+                let mouseKeyDowns = Rx.Observable.fromEvent($('.white, .black'), 'mousedown').do(ev=>console.log('pressed '+ev.target.id)).map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
+                let mouseKeyUps = Rx.Observable.fromEvent($('.white, .black'), 'mouseup').do(ev=>console.log('released '+ev.target.id)).map(ev => ({ key: keyboard.keysById[ev.target.id] }) );
 
                 let midiMessages = Rx.Observable.fromEvent(midiInput, 'midimessage').map(parseMidi);
                 let midiKeyDowns = midiMessages.filter( m => m.command === 'on');

@@ -215,6 +215,7 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
         this.keyState[key.id] = Object.freeze(pressInfo) 
             || Object.freeze({ key: key, fromNote: false }); // TODO this looks like future complexity
         key.$el.addClass('pressed');
+        if(!this.silent) this.playNote(key.baseNote);
     }
 
     // FIXME This is a hack to release the key but keep it
@@ -245,20 +246,20 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
 
 
     Keyboard.prototype.successKey = function(key) {
-        this.colorKey(key, 'success', 200);
-        if(!this.silent) this.playNote(key.baseNote);
+        //this.colorKey(key, 'success', 200);
+        this.colorKey(key, 'success');
     };
 
 
     Keyboard.prototype.failKey = function(key) {
-        this.colorKey(key, 'failure', 200);
-        if(!this.silent) this.playNote(key.baseNote);
+        //this.colorKey(key, 'failure', 200);
+        this.colorKey(key, 'failure');
     };
 
 
+    // TODO remove this if it stays identical to failKey
     Keyboard.prototype.failKeyForever = function(key) {
         this.colorKey(key, 'failure');
-        if(!this.silent) this.playNote(key.baseNote);
     };
 
 
