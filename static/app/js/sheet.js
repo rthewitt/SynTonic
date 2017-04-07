@@ -66,14 +66,12 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         let futureVexNotes = notes.futureSlots.slice(0, 8).map( n => n.vexNote );
         if(futureVexNotes.length) {
             futureVexNotes.forEach( (vn,vi) => { // note, index
-                if(vi === 0) vn.setStyle(activeStyle);
                 vn.keyProps.forEach( (n,i) => {
-                    if(notes && notes.futureSlots[vi].noteProps[i].played) {
-                        console.log('partial played');
-                        vn.setKeyStyle(i, n.signatureKeyHint ? successModStyle : successStyle);
+                    if(notes && notes.futureSlots[vi].noteProps[i].playCount > 0) {
+                        vn.setKeyStyle(i, n.signatureKeyHint ? activeModStyle : activeStyle);
                     }
-                    else if(n.signatureKeyHint) vn.setKeyStyle(i, vi === 0 ? activeModStyle : modStyle);
-                    else vn.setKeyStyle(i, vi === 0 ? activeStyle : noStyle); // yes, explicitly setting no style now, so sue me.
+                    else if(n.signatureKeyHint) vn.setKeyStyle(i, modStyle);
+                    else vn.setKeyStyle(i, noStyle); 
                 });
             });
         }

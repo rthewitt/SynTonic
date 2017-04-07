@@ -115,7 +115,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                         Rx.Observable.merge(mouseKeyDowns, midiKeyDowns, qwertyPresses)
                             .map(press => ({ key: press.key, action: 1, fromNote: press.fromNote || false })),
 
-                        Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(200))
+                        Rx.Observable.merge(mouseKeyUps, midiKeyUps, qwertyPresses.delay(300))
                             .map(rel => ({ key: rel.key, action: 0, fromNote: rel.fromNote || false }))
                     ).subscribe( input => {
                         if(input.action > 0) keyboard.pressKey(input.key, input);

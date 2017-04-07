@@ -216,8 +216,9 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     bad = n.badSlots,
                     score = state.score; 
             
-                // why does it go from 75 to infinity immediately?
-                if(X_infinity(future[0]) === Infinity) return state; // FIXME TODO HACK only testing bug
+                // why does it go from 75 to infinity immediately? 
+                // FIXME TODO HACK only testing bug - the real trouble is this could mask real bugs
+                if(X_infinity(future[0]) === Infinity) return state;
 
                 let slot = future[0], // TODO handle case where nothing is left to play
                     allPressed = keyboard.getPressed();
@@ -237,17 +238,12 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let successKeys = [];
                 let playedAll = true;
                 targetKeys.forEach( ( target, ti ) => {
-                    // TODO played too long?  Decide strategy
                     let played = allPressed.some( p => p.key === target);
                     let props = slot.noteProps[ti];
                     if(played) {
                         successKeys.push(slot.notes[ti].pianoKey);
-                        // I think ignoreState was the problem - I just commented it out TODO delete it once working
                         if(++props.playCount < DURATIONS[props.duration]) playedAll = false;
-                    } else {
-                        console.log('nope');
-                        playedAll = false;
-                    }
+                    } else playedAll = false;
                 });
 
                 if(playedAll) {
@@ -293,14 +289,12 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 MusicSheet.renderStaves(world.notesToRender, self.keySig, world.renderStart),
                 updateProgressBar(world.time, GAME_TIME) 
 
-                // TODO move to duration notes, and delete this "set not pressed" hack from keyboard
                 world.successKeys.forEach( k => {
                     keyboard.successKey(k);
-                    if(world.playedAll) keyboard.clearKey(k); // state hack to allow presses longer than update interval
+                    if(world.playedAll) keyboard.clearKey(k);
                 });
                 world.failureKeys.forEach( k => {
                     keyboard.failKey(k);
-                    //keyboard.ignoreKeyState(k); // state hack to allow presses longer than update interval
                 });
 
                 scoreBoard.text(''+world.score);
