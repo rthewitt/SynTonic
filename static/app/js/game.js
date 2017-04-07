@@ -243,7 +243,11 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     if(played) {
                         successKeys.push(slot.notes[ti].pianoKey);
                         if(++props.playCount < DURATIONS[props.duration]) playedAll = false;
-                    } else playedAll = false;
+                    } else {
+                        playedAll = false;
+                        props.playCount = 0;
+
+                    }
                 });
 
                 if(playedAll) {
