@@ -1,6 +1,6 @@
 define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', './util'], function($, _, Rx, Vex, MusicSheet, dispatcher, util) {
 
-    const DURATIONS = { 'q': 10 }
+    const DURATIONS = { 'q': 5 }
 
     const MODIFIED_NOTES = {
         '#': ['F', 'C', 'G', 'D', 'A', 'E', 'B'],

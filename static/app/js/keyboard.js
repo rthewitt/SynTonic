@@ -228,6 +228,7 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
     Keyboard.prototype.releaseKey = function(key) {
         this.keyState[key.id] = false;
         key.$el.removeClass('pressed');
+        this.clearKey(key);
     }
 
     Keyboard.prototype.clearKey = function(key) {
