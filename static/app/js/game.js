@@ -213,7 +213,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let n = state.notesToRender,
                     future = n.futureSlots,
                     past = n.pastSlots,
-                    bad = n.badSlots,
+                    bad = [], 
                     score = state.score; 
             
                 // why does it go from 75 to infinity immediately? 
@@ -230,7 +230,6 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 let failureKeys = _.difference(allPressed.map( p => p.key), targetKeys);
                 if(failureKeys.length) {
                     let mistakes = new Slot(failureKeys.map(k => k.baseNote));
-                    bad.shift();
                     bad.push(mistakes);
                 }
                     
@@ -254,7 +253,6 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     score++;
                     successKeys.forEach( k => keyboard.ignoreKeyState(k));
                     past.push(future.shift());
-                    bad.shift();
                 }
 
                 let nextSlot = future[0], // next slot to play, could be same as slot

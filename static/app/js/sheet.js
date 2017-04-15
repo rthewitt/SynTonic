@@ -111,15 +111,10 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         // we are NOT joining voices, which ONLY handles accidental collision avoidence
         // we do not want notes of different voices (e.g., faulty notes) to appear as intended artifacts, merely visual effects
         // I think this means in the past faulty notes would force the notes to re-arrange. We should experiment again
-        //if(faultyVexNotes.length) 
-            //debugger;
-        
-        let formatter = new VF.Formatter().joinVoices([futureVoice, faultyVoice]).format([futureVoice, faultyVoice], 700);
-
-
-        //let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
-        faultyVoice.draw(context, stave);
+        //let formatter = new VF.Formatter().joinVoices([futureVoice, faultyVoice]).format([futureVoice, faultyVoice], 700);
+        let formatter = new VF.Formatter().format([futureVoice, faultyVoice], 700);
         futureVoice.draw(context, stave);
+        faultyVoice.draw(context, stave);
     }
 
     return {
