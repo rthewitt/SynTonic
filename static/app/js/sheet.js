@@ -45,19 +45,20 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         if(typeof pos === 'undefined') pos = START_NOTE_X;
         let VF = Vex.Flow;
-        renderer.resize(820, 200);
+        renderer.resize(1640, 200);
         let context = renderer.getContext();
+        context.scale(2.0, 2.0);
         context.setFont("Arial", 10, "").setBackgroundFillStyle("#eed");
 
         // left side of finish line
-        let dummyStave = new VF.Stave(10, 40, 150);
+        let dummyStave = new VF.Stave(10, 0, 150);
         dummyStave.addClef('treble'); //.addTimeSignature('4/4');
         dummyStave.setNoteStartX(75);
         let rest = new VF.StaveNote({clef: "treble", keys: ["b/4"], duration: "wr" });
         if(!!keySig) new VF.KeySignature(keySig).addToStave(dummyStave);
         dummyStave.setContext(context).draw();
         VF.Formatter.FormatAndDraw(context, dummyStave, [rest]);
-        let stave = new VF.Stave(dummyStave.x+dummyStave.width, 40, 650);
+        let stave = new VF.Stave(dummyStave.x+dummyStave.width, 0, 650);
         stave.setContext(context).draw();
         stave.setNoteStartX(pos);
 
