@@ -164,7 +164,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             
             function startPianoApp() {
                 // so that we can pass instrument into the Game constructor once again
-                MusicSheet.init(keyboard); // set up the Dom
+                MusicSheet.init(); // set up the Dom
 
                 showSettings = $('#show-settings');
                 gameSelect = $('#game-type');
