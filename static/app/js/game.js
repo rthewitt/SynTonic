@@ -183,8 +183,8 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         }));
 
 
-        //let START_ARRAY = [['4C'],['4D'],['4E'],['4F'],['4G'],['4A'],['4B']];
-        let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
+        let START_ARRAY = [['4C'],['4D'],['4E'],['4F'],['4G'],['4A'],['4B']];
+        //let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
 
         // TODO simply construct INITIAL_STATE from passed options
         // for song, set futureSlots whole as we do here

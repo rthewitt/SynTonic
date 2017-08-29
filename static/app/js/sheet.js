@@ -121,7 +121,7 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
         init: function(instrument) { 
                   renderer = new Vex.Flow.Renderer($('#vex-canvas')[0], 
                           Vex.Flow.Renderer.Backends.CANVAS);
-                  keyboard = instrument; 
+                  //keyboard = instrument; 
               },
         startNoteX: START_NOTE_X,
         noteColors: NOTE_COLORS,

@@ -22,17 +22,18 @@ require.config({
 });
 
 
-require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard', 'microphone',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap', 'bootstrap-slider'
-        ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, Microphone, dispatcher, audio, util, config) {
 
             var game = null;
             var ws = null;
 
             // FIXME remove this, or document blacklist in UI
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
+            var mic = window.MIC = new Microphone();
 
             var gameOver,
                 gameStop,
@@ -47,6 +48,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             var midi = null,
                 midiInput = { addEventListener: function(){} }, // need a handle for event listener
                 easyDismi$$; // temporary handler to continue with keypress
+
 
             function parseMidi( event ) {
                 // Uint8Array?
@@ -126,6 +128,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
             const hardcodedInputs = ['D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67', 'EF99508ECC892C3460736F15B536E304B0BBE88E7BFA62BE3CA2D8B56CC3996A', '-11152290'];
             const hardcodedOutputs = ['37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A', 'F14ED547EB80062598FBC248E6D86BA69CE0A808B1E86C5209421CAC47410812', '1380637477'];
 
+
             function onMidiSuccess(mAccess) {
                 midi = window.MIDI = mAccess;
                 for (var entry of midi.inputs) {
@@ -161,7 +164,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 keyboard.clearAllKeys();
                 MusicSheet.renderStavesEmpty(currentKeySignature()); 
             }
-            
+
             function startPianoApp() {
                 // so that we can pass instrument into the Game constructor once again
                 MusicSheet.init(keyboard); // set up the Dom
@@ -224,6 +227,79 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
 
                 // for system exclusive messages, pass opts: { sysex: true }
                 navigator.requestMIDIAccess().then(onMidiSuccess, onMidiFailure);
+
+                $('#use-instrument').change(function() {
+                    keyboard.output = $(this).prop('checked');
+                });
+
+                ws = new WebSocket('ws://localhost:8888');
+            }
+            
+            function startWhistleApp() {
+
+                $('#piano').hide();
+
+                // so that we can pass instrument into the Game constructor once again
+                MusicSheet.init(keyboard); // set up the Dom
+
+                showSettings = $('#show-settings');
+                gameSelect = $('#game-type');
+                gameStart = $('#start-game');
+                gameStop = $('.stop-game');
+                stopText = $('.stop-text');
+                playNow = $('#play-now');
+                gameOver = $('#gameover');
+                gameOverMsg = $('#game-over-message');
+
+                $('#play-again').on('click', onPlayAgain);
+                var $gameOver = document.querySelector('#gameover');
+                MouseTrap($gameOver).bind('enter', (e, combo) => {
+                        gameOver.modal('hide');
+                        onPlayAgain();
+                });
+                MouseTrap.bind('esc', () => gameStop.trigger('click'));
+
+                gameOver.on('hidden.bs.modal', () => {
+                    // get rid of MIDI listener so it doesn't impact gameplay
+                    if(!!easyDismi$$) {
+                        easyDismi$$.dispose();
+                        easyDismi$$ = null;
+                    }
+                });
+
+                // came from settings dialog
+                playNow.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
+
+                gameStop.on('click', onGameStop);
+                gameStart.on('click', () => onGameStart($('#mode-display').text().toUpperCase()));
+
+                $('#game-type-ul li').on('click', (ev) => $('#mode-display').text($(ev.currentTarget).text()));
+                showSettings.on('click', (ev) => $('#settings').modal('show'));
+
+                keySig = $('#keysig');
+                // TODO add a way to change key signatures from outside of settings dialog
+                keySig.on('change', ev => {
+                    keyboard.clearAllKeys();
+                    MusicSheet.renderStavesEmpty(currentKeySignature()); 
+                });
+
+                gameSpeed = $('#game-speed').slider()
+                    .on('slide', () => { 
+                        if(!!game) game.setSpeed(gameSpeed.getValue()); 
+                    }).data('slider');
+
+
+                // requires a game to exist of course
+                dispatcher.on('game::over', (success) => {
+                    setTimeout( () => {
+                        if(!!game) delete game;
+                        displayEndScore(success)
+                        afterGameStop();
+                    }, 400);
+                });
+
+                dispatcher.on('mic::ready', () => gameStart.trigger('click'));
+                mic.enable();
 
                 $('#use-instrument').change(function() {
                     keyboard.output = $(this).prop('checked');
@@ -326,5 +402,5 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 benches: '#notes'
             });
             
-            $(document).ready(startPianoApp);
+            $(document).ready(startWhistleApp);
 });

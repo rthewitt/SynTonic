@@ -34,8 +34,6 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
 
     var notesById = _.indexBy(allNotes, 'id');
 
-
-
     // TODO remove string based ids for octaves
     function PianoKey(noteId) {
         let baseNote = notesById[noteId];
