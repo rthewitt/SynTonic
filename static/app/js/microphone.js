@@ -1,7 +1,8 @@
 define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($, dispatcher, _, audio, util) {
 
+    // TODO figure out how to publish / subscribe to microphone stream
+
     // TODO freeze, and/or consolidate into Audio (from keyboard as well)
-    const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
     const streamOpts = {
         "audio": {
@@ -21,32 +22,19 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
 
 
     // TODO make animation specific to instance
-    // Whistle UI Specific (DELETE MOST OF THIS)
-    var detectorElem,
-        canvasElem,
-        waveCanvas,
-        pitchElem,
-        noteElem,
-        detuneElem,
-        detuneAmount;
+    var waveCanvas;
 
     // TODO remove most of this, and pass in UI elements as dependencies
     function setupUI() {
         audioContext = new AudioContext();
         MAX_SIZE = Math.max(4,Math.floor(audioContext.sampleRate/5000));    // corresponds to a 5kHz signal
 
-        detectorElem = document.getElementById( "detector" );
-        canvasElem = document.getElementById( "output" );
         DEBUGCANVAS = document.getElementById( "waveform" );
         if (DEBUGCANVAS) {
             waveCanvas = DEBUGCANVAS.getContext("2d");
             waveCanvas.strokeStyle = "black";
             waveCanvas.lineWidth = 1;
         }
-        pitchElem = document.getElementById( "pitch" );
-        noteElem = document.getElementById( "note" );
-        detuneElem = document.getElementById( "detune" );
-        detuneAmount = document.getElementById( "detune_amt" );
     }
 
 
@@ -81,11 +69,11 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
     }
 
     function updatePitch() {
-        console.log('update called');
+        //console.log('update called');
 
         var cycles = new Array;
         analyser.getFloatTimeDomainData( buf );
-        var ac = audio.autoCorrelate( buf, audioContext.sampleRate );
+        var pitch = audio.autoCorrelate( buf, audioContext.sampleRate );
         // TODO: Paint confidence meter on canvasElem here.
 
         /*
@@ -114,28 +102,19 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
         }
         */
 
-        if (ac == -1) {
-            detectorElem.className = "vague";
-            pitchElem.innerText = "--";
-            noteElem.innerText = "-";
-            detuneElem.className = "";
-            detuneAmount.innerText = "--";
-        } else {
-            detectorElem.className = "confident";
-            pitch = ac;
-            pitchElem.innerText = Math.round( pitch ) ;
-            var note =  audio.noteFromPitch( pitch );
-            noteElem.innerHTML = noteStrings[note%12];
-            var detune = audio.centsOffFromPitch( pitch, note );
-            if (detune == 0 ) {
-                detuneElem.className = "";
-                detuneAmount.innerHTML = "--";
-            } else {
-                if (detune < 0)
-                    detuneElem.className = "flat";
-                else
-                    detuneElem.className = "sharp";
-                detuneAmount.innerHTML = Math.abs( detune );
+        // confident threshold met
+        if(pitch != -1) {
+            var note =  audio.noteFromPitch( pitch ); // FIXME put this in util, use noteNames (from C instead of my version from A)
+            //noteElem.innerHTML = noteStrings[note%12];
+            var detune = audio.centsOffFromPitch( pitch, note ); // TODO consider using detune to shift note up/down?
+            // less than 0? flat. greater than 0? sharp
+            if(note < 108) { // we appear to be getting false readings in silence
+                dispatcher.trigger('mic::note', 
+                    {
+                        pitch: pitch,
+                        note: note,
+                        detune: detune
+                    });
             }
         }
 
@@ -144,5 +123,5 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
         rafID = window.requestAnimationFrame( updatePitch );
     }
 
-    return Microphone;
+    return new Microphone; // important, this is a singleton / instance
 });

@@ -9,7 +9,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
     var gameStop, 
         gameStart,
-        instrument,
+        keyboard,
         scoreBoard, 
         progressBar;
 
@@ -55,6 +55,21 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
     }
 
 
+    // TODO merge these generate functions, nearly identitical now
+    // TODO get this once, not every single time
+    // benefit is that I could cycle scales as I go
+    function generateScales() {
+        let scale = util.getScaleForKey(this.keySig);
+        var self = this;
+        return Rx.Observable.fromArray(scale) 
+            .map( n_o  => new Slot(keyboard.notesById[''+n_o[1]+n_o[0]], self.keySig)).do( n => {
+                n.vexNote.keyProps.forEach( k=> {
+                    k.noStyle = true;
+                });
+            });
+    }
+
+
     // TODO get this once, not every single time
     // benefit is that I could cycle scales as I go
     function generateSimple() {
@@ -71,12 +86,12 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             noteName += Math.random() < 0.5 ? 's' : 'b';
         }
 
-        return Rx.Observable.just(new Slot(instrument.notesById[''+octave+noteName], this.keySig));
+        return Rx.Observable.just(new Slot(keyboard.notesById[''+octave+noteName], this.keySig));
     }
 
 
     function Game(opts) {
-        initialize(opts.instrument);
+        initialize(opts.keyboard);
         let gt = util.gameTypes; 
 
         this.type = opts.type;
@@ -107,6 +122,14 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         }
 
 
+        // more concise code
+        let kb = keyboard;
+            clearAllKeys = kb.clearAllKeys.bind(kb),
+            activateKey = kb.activateKey.bind(kb),
+            generate = this.generate.bind(this);
+
+        clearAllKeys();
+
         let X = n => n.vexNote.getAbsoluteX(),
             X_infinity= n => { try { return X(n) } catch(e) { return Infinity; } },
             Width = n => n.vexNote.width,
@@ -114,6 +137,34 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             WidthAndPadding = n => Width(n) + Padding(n);
 
         var self = this;
+/*
+
+        // "generator" for notes
+        var notegen = new Rx.Subject();
+
+        // TODO create simple function API so that we don't require
+        // domain knowledge elsewhere in the code to take advantage of this
+        let sourceNotes = notegen.flatMap( (thrust) => {
+            if(!thrust) return generate();
+            if(thrust instanceof Note) return Rx.Observable.just(thrust);
+            let requested = [], n=thrust;
+            if(typeof thrust === 'number') {
+                for(let i=0; i<n; i++) requested.push(generate());
+                return requested[0].merge.apply(requested.slice(1));
+            }
+            throw 'Cannot generate from thrusted value='+thrust+'of type '+(typeof thrust);
+        });
+
+        let tonic = this.key ? util.getScaleForKey(this.key)[0] : ['C', 3],
+            startNote = new Note(tonic[0], tonic[1], this.key);
+
+        notegen.onNext(this.type === gt.SCALES ? undefined : startNote);
+        activateKey(startNote.key);
+        if(this.type !== gt.SCALES) notegen.onNext(11);
+
+        MusicSheet.renderStaves(playQueue, this.keySig);
+        scoreBoard.text('0');
+*/
 
         var GAME_TIME = 500;
 
@@ -133,8 +184,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
 
         //let START_ARRAY = [['4C'],['4D'],['4E'],['4F'],['4G'],['4A'],['4B']];
-        let START_ARRAY = [['5D'],['5E'],['5F'],['5G'],['5A'],['5B'],['5F']];
-        //let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
+        let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
 
         // TODO simply construct INITIAL_STATE from passed options
         // for song, set futureSlots whole as we do here
@@ -142,10 +192,12 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         INITIAL_STATE = {
             renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
             notesToRender: {
-                futureSlots: START_ARRAY.concat(START_ARRAY).map( noteIds =>  new Slot(noteIds.map( id => instrument.notesById[id]))),
+                futureSlots: START_ARRAY.concat(START_ARRAY).map( noteIds => new Slot(noteIds.map( id => keyboard.notesById[id]))),
                 pastSlots: [],
                 badSlots: []
             },
+            successKeys: [],
+            failureKeys: [],
             stopped: false,
             time: GAME_TIME,
             score: 0,
@@ -169,34 +221,37 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                 if(X_infinity(future[0]) === Infinity) return state;
 
                 let slot = future[0], // TODO handle case where nothing is left to play
-                    curPlayed = instrument.getCurrentNotes();
+                    allPressed = keyboard.getPressed();
 
-                let targetNotes = slot.notes;
+                let targetKeys = slot.notes.map(n => n.pianoKey);
 
                 // This is... interesting. We still use an array / queue, but really only allowing a single
                 // entry at this point by shifting on success.
-                let failureNotes = _.difference(curPlayed, targetNotes);
-                if(failureNotes.length) {
-                    bad.push( new Slot(failureNotes) );
+                let failureKeys = _.difference(allPressed.map( p => p.key), targetKeys);
+                if(failureKeys.length) {
+                    let mistakes = new Slot(failureKeys.map(k => k.baseNote));
+                    bad.push(mistakes);
                 }
                     
 
+                let successKeys = [];
                 let playedAll = true;
-                targetNotes.forEach( ( target, ti ) => {
-                    let played = curPlayed.some( p => p === target);
+                targetKeys.forEach( ( target, ti ) => {
+                    let played = allPressed.some( p => p.key === target);
                     let props = slot.noteProps[ti];
                     if(played) {
+                        successKeys.push(slot.notes[ti].pianoKey);
                         if(++props.playCount < DURATIONS[props.duration]) playedAll = false;
                     } else {
                         playedAll = false;
                         props.playCount = 0;
+
                     }
                 });
 
                 if(playedAll) {
                     score++;
-                    // KEYBOARD SPECIFIC HACK TO AVOID REGISTERING AS MULTIPLE KEYPRESSES
-                    //successKeys.forEach( k => keyboard.ignoreKeyState(k));
+                    successKeys.forEach( k => keyboard.ignoreKeyState(k));
                     past.push(future.shift());
                 }
 
@@ -220,6 +275,8 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     playedAll: playedAll,
                     stopped: !!stop,
                     time: playedAll && score % 5 == 0 ? GAME_TIME : state.time - 1, // relay 
+                    successKeys: successKeys,
+                    failureKeys: failureKeys,
                     score: score,
                     missed: curPos < cutoff
                 } 
@@ -233,6 +290,14 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             .subscribe(([ticker, world]) => {
                 MusicSheet.renderStaves(world.notesToRender, self.keySig, world.renderStart),
                 updateProgressBar(world.time, GAME_TIME) 
+
+                world.successKeys.forEach( k => {
+                    keyboard.successKey(k);
+                    if(world.playedAll) keyboard.clearKey(k);
+                });
+                world.failureKeys.forEach( k => {
+                    keyboard.failKey(k);
+                });
 
                 scoreBoard.text(''+world.score);
                 if(world.time <= 0 || world.stopped || world.missed) game.dispose();
@@ -253,15 +318,14 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
 
     // when the app / dom is ready...
-    function initialize(inst) {
+    function initialize(instrument) {
         gameStop = $('.stop-game');
         progressBar = $('#progress-meter');
         scoreBoard = $('#scoreboard');
 
         // TODO see main.js for TODO
         // remove UI functions from this file
-        console.log('should have set instrument...');
-        instrument = inst; // naming collision caused global undefined
+        keyboard = instrument;
 
         setMaxProgress();
     }

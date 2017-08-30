@@ -1,6 +1,7 @@
 require.config({
     paths: {
-        "jquery": ["http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min", 
+        "jquery": [
+/*"http://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min", */
                     "libs/jquery/dist/jquery.min"],
         "bootstrap": "libs/bootstrap-dist/bootstrap.min",
         "bootstrap-slider": "libs/bootstrap-slider/bootstrap-slider.min",
@@ -22,18 +23,18 @@ require.config({
 });
 
 
-require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard', 'microphone',
+require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 'vexflow', 'mousetrap', './game', './sheet', 'keyboard', 'instrument',
         './dispatcher', './audio', './util', './config',
         // consume
         'bootstrap', 'bootstrap-slider'
-        ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, Microphone, dispatcher, audio, util, config) {
+        ], function($, _, Rx, Backbone, Marionette, Mustache, Vex, MouseTrap, Games, MusicSheet, Keyboard, Whistle, dispatcher, audio, util, config) {
 
             var game = null;
             var ws = null;
 
             // FIXME remove this, or document blacklist in UI
             var keyboard = window.KB = new Keyboard({ blacklist: [98] });
-            var mic = window.MIC = new Microphone();
+            var whistle = new Whistle; // TODO extract whistle from instrument
 
             var gameOver,
                 gameStop,
@@ -279,7 +280,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 keySig = $('#keysig');
                 // TODO add a way to change key signatures from outside of settings dialog
                 keySig.on('change', ev => {
-                    keyboard.clearAllKeys();
+                    //keyboard.clearAllKeys();
                     MusicSheet.renderStavesEmpty(currentKeySignature()); 
                 });
 
@@ -299,7 +300,7 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                 });
 
                 dispatcher.on('mic::ready', () => gameStart.trigger('click'));
-                mic.enable();
+                whistle.pipe(); // TODO whatever
 
                 $('#use-instrument').change(function() {
                     keyboard.output = $(this).prop('checked');
@@ -381,9 +382,10 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     case gt.SANDBOX:
                         game = new Games.Game({ 
                             type: mode,
-                            keyboard: keyboard,
+                            instrument: whistle, // currently whistle until abstracted
                             keySig: currentKeySignature(),
-                            speed: gameSpeed.getValue(),
+                            speed: 3, // TODO FIXME - need whistle type game, where it is integrated instead of mutated
+                            //speed: gameSpeed.getValue(),
                             keyHints: $('#keysig-hints').prop('checked'),
                             pianoHints: $('#piano-hints').prop('checked') 
                         });
