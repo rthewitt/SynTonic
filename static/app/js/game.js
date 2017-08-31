@@ -132,8 +132,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         }));
 
 
-        //let START_ARRAY = [['4C'],['4D'],['4E'],['4F'],['4G'],['4A'],['4B']];
-        let START_ARRAY = [['5D'],['5E'],['5F'],['5G'],['5A'],['5B'],['5F']];
+        let START_ARRAY = [['4Fs'],['4G'],['4A'],['4B'],['5D'],['5E'],['5F'],['5G'],['5A'],['5B'],['5F'],['4Fs'],['4G'],['4A'],['4B']];
         //let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
 
         // TODO simply construct INITIAL_STATE from passed options
