@@ -132,7 +132,15 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         }));
 
 
-        let START_ARRAY = [['4Fs'],['4G'],['4A'],['4B'],['5D'],['5E'],['5F'],['5G'],['5A'],['5B'],['5F'],['4Fs'],['4G'],['4A'],['4B']];
+        //let START_ARRAY = [['5A'],['4F'],['4G'],['4A'],['4B']];
+        let START_ARRAY = [['4F'],['4E'],['4G'],['4G'],['4F'],['4D'],['3A'],
+            ['4F'],['4E'],['4G'],['4G'],['4F'],['4D'],['4F'],['4D']];
+
+        // FULL RANGE
+        //let START_ARRAY = [['4G'],['4F'],['4E'],['4D'],/*['4C'],*/['4D'],['4E'],['4F'],['4G'],['4A'],['4B'],['5C'],['5D'],['5E'],['5F'],['5G'],/*['5A'],*/['5B'],['6C'],['5F'],['4Fs'],['4G'],['4A'],['4B']];
+        // DESCENDING
+        //let START_ARRAY = [['6C'],['5B'],/*['5A'],*/['5G'],['5F'],['5E'],['5D'],['5C'],['4B'],['4A'],['4G'],['4F'],['4E'],['4D']];
+
         //let START_ARRAY = [['4C', '4E'],['4D'],['4C','4E'],['4F'],['4G'],['4A'],['4B']];
 
         // TODO simply construct INITIAL_STATE from passed options
@@ -141,7 +149,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
         INITIAL_STATE = {
             renderStart: 500, // MusicSheet.startNoteX, // REPLACE THIS once we have "first attempt starts the game"
             notesToRender: {
-                futureSlots: START_ARRAY.concat(START_ARRAY).map( noteIds =>  new Slot(noteIds.map( id => instrument.notesById[id]))),
+                futureSlots: START_ARRAY.map( noteIds =>  new Slot(noteIds.map( id => instrument.notesById[id]))),
                 pastSlots: [],
                 badSlots: []
             },
