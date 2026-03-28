@@ -27,7 +27,7 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             let acc = this.vexNote.keyProps[i].accidental;
             if(acc) this.vexNote.addAccidental(i, new VF.Accidental(acc));
             let isModified = false;
-            if(!!keySpec && !!keySpect.acc) {
+            if(!!keySpec && !!keySpec.acc) {
                 let modifiedNotes = MODIFIED_NOTES[keySpec.acc].slice(0, keySpec.num);
                 isModified = modifiedNotes.indexOf(n.name) !== -1;
             }
