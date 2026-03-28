@@ -173,13 +173,19 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
 
         const TICKER_INTERVAL = 34;
 
+	/*
+	    deltaTime had a major typo
+	    was set to (cur.time, prev.time) / 1000
+	    Original loop design is unclear
+	    possibly abandoned for this reason?
+	 */
         const ticker$ = Rx.Observable.interval(TICKER_INTERVAL, Rx.Scheduler.requestAnimationFrame).map(() => ({
             time: Date.now(),
             deltaTime: null
         }))
         .scan( (prev, cur) => ({
             time: cur.time,
-            deltaTime: (cur.time, prev.time) / 1000
+            deltaTime: (cur.time - prev.time) / 1000
         }));
 
 
@@ -218,7 +224,11 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
             
                 // why does it go from 75 to infinity immediately? 
                 // FIXME TODO HACK only testing bug - the real trouble is this could mask real bugs
-                if(X_infinity(future[0]) === Infinity) return state;
+                if(X_infinity(future[0]) === Infinity)
+		{
+		    console.log("75 Infinity Bug");
+		    return state;
+		}
 
                 let slot = future[0], // TODO handle case where nothing is left to play
                     allPressed = keyboard.getPressed();
@@ -259,11 +269,13 @@ define(['jquery', 'underscore', 'rxjs', 'vexflow', './sheet', './dispatcher', '.
                     cutoff = MusicSheet.startNoteX - Width(nextSlot), // if we restore at-your-own-pace, return startNote + someBuffer (10px)
                     curPos = X_infinity(nextSlot); // Infinity avoids exception on eager player presses
 
-                if(past.length && X(past[0]) < MusicSheet.startNoteX-75) past.shift();
+		let removedSlot = null;
+		if(past.length && X(past[0]) < MusicSheet.startNoteX - 75) {
+		    removedSlot = past.shift();
+		}
 
-                let firstSlot = past.length ? past[0] : future[0];
-                renderPos = X_infinity(firstSlot) - self.streamSpeed - WidthAndPadding(firstSlot);
-
+		let firstSlot = past.length ? past[0] : future[0];
+		renderPos = X_infinity(firstSlot) - self.streamSpeed - WidthAndPadding(firstSlot);
 
                 return { 
                     renderStart: renderPos,

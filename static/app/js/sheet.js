@@ -102,7 +102,13 @@ define(['jquery', 'rxjs', 'vexflow', './dispatcher', './util'], function($, Rx, 
 
         let futureVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         futureVoice.setStrict(false); // remove tick counting, we aren't using measures
-        futureVoice.addTickables(pastVexNotes.concat(futureVexNotes).slice(0, 8)); // slice to keep justify from squeezing
+
+	// When using finite number of notes, render width became unstable
+	let displayNotes = pastVexNotes.concat(futureVexNotes);
+	while (displayNotes.length < 8) {
+	    displayNotes.push(getQuarterRest());
+	}
+	futureVoice.addTickables(displayNotes.slice(0, 8));
 
         let faultyVoice = new VF.Voice({ num_beats: 4, beat_value: 4 });
         faultyVoice.setStrict(false); // remove tick counting, we aren't using measures
