@@ -170,23 +170,24 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     console.log('INPUT, ' + input.name + ' :: ' + input.id);
                 }
 
-                for (const input of midi.inputs.values()) {
-                    console.log('OUTPUT, ' + input.name + ' :: ' + input.id);
+                for (const output of midi.outputs.values()) {
+                    console.log('OUTPUT, ' + output.name + ' :: ' + output.id);
                 }
 
                 // hard-coded names (not-required) as IDs are no longer reliable
-                const midiInput = pickPort(midi.inputs, 'input', 'CH345:CH345 MIDI 1 20:0');
-                const midiOutput = pickPort(midi.outputs, 'output', 'CH345:CH345 MIDI 1 20:0');
+                const _midiInput = pickPort(midi.inputs, 'input', 'CH345:CH345 MIDI 1 20:0');
+                const _midiOutput = pickPort(midi.outputs, 'output', 'CH345:CH345 MIDI 1 20:0');
 
                 // TODO force selection if these are null
-                if (midiInput) {
+                if (_midiInput) {
+		    midiInput = _midiInput;
                     $('#is-connected').prop('checked', 'checked');
                 }
 
-                if (midiOutput) {
-                    midiOutput.open();
+                if (_midiOutput) {
+                    _midiOutput.open();
                     keyboard.output = true;
-                    keyboard.midiOut = midiOutput;
+                    keyboard.midiOut = _midiOutput;
                     $('#use-instrument').prop('checked', 'checked');
                 }
 
