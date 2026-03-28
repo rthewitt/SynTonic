@@ -123,34 +123,73 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     });
             }
                 
-            const hardcodedInputs = ['D236B183A211441B323363DFA0572EDB190FA7BC961CAB61DE989CBCDC6C5D67', 'EF99508ECC892C3460736F15B536E304B0BBE88E7BFA62BE3CA2D8B56CC3996A', '-11152290',
-                    'CmhEVQt80/3a2u0AYfcMEWkAhC25fDRA91dhguN6ogQ=' // Added 4/23/2026
-            ];
-            const hardcodedOutputs = ['37404369B80CF4EF4EC25AF434890FD1792FFD304E48EEE6E57D6D5430B5378A', 'F14ED547EB80062598FBC248E6D86BA69CE0A808B1E86C5209421CAC47410812', '1380637477',
-                    'CmhEVQt80/3a2u0AYfcMEWkAhC25fDRA91dhguN6ogQ=' // Added 4/23/2026
-            ];
+	    function normalizePortName(name) {
+		return (name || '')
+		    .trim()
+		    .toLowerCase()
+		    .replace(/\s+/g, ' ');
+	    }
+
+	    function isThroughPort(port) {
+		const n = normalizePortName(port.name);
+		return n.includes('through');
+	    }
+
+	    function usablePorts(portMap, wantedType) {
+		const ports = [];
+		for (const [, port] of portMap) {
+		    if (port.type !== wantedType) continue;
+		    if (port.state !== 'connected') continue;
+		    if (isThroughPort(port)) continue;
+		    ports.push(port);
+		}
+		return ports;
+	    }
+
+
+	    function pickPort(portMap, wantedType, preferredName) {
+		const ports = usablePorts(portMap, wantedType);
+		if (!ports.length) return null;
+
+		const wanted = normalizePortName(preferredName);
+		const exact = ports.find(p => normalizePortName(p.name) === wanted);
+		if (exact) return exact;
+
+		if (ports.length === 1) return ports[0];
+
+		return null; // force UI selection
+	    }
 
             function onMidiSuccess(mAccess) {
+
                 midi = window.MIDI = mAccess;
-                for (var entry of midi.inputs) {
-                    var input = entry[1];
-                    console.log('found midi input ' + input.name + ' ::: ' + input.id);
-                    if(hardcodedInputs.indexOf(input.id) !== -1) {
-                        console.log('TODO create a dropdown select for input/output');
-                        midiInput = input;
-                        $('#is-connected').prop('checked', 'checked');
-                    }
+
+		console.log('Searcing for MIDI ports: Type, Name :: Volatile UID)');
+
+		for (const input of midi.inputs.values()) {
+                    console.log('INPUT, ' + input.name + ' :: ' + input.id);
                 }
-                for (var entry of midi.outputs) {
-                    var output = entry[1];
-                    console.log('OUTPUT ' + output.name + ' ::: ' + output.id);
-                    if(hardcodedOutputs.indexOf(output.id) !== -1) {
-                        output.open();
-                        keyboard.output = true;
-                        keyboard.midiOut = output;
-                        $('#use-instrument').prop('checked', 'checked');
-                    }
+
+		for (const input of midi.inputs.values()) {
+                    console.log('OUTPUT, ' + input.name + ' :: ' + input.id);
                 }
+
+		// hard-coded names (not-required) as IDs are no longer reliable
+		const midiInput = pickPort(midi.inputs, 'input', 'CH345:CH345 MIDI 1 20:0');
+		const midiOutput = pickPort(midi.outputs, 'output', 'CH345:CH345 MIDI 1 20:0');
+
+		// TODO force selection if these are null
+		if (midiInput) {
+		    $('#is-connected').prop('checked', 'checked');
+		}
+
+		if (midiOutput) {
+		    midiOutput.open();
+		    keyboard.output = true;
+		    keyboard.midiOut = midiOutput;
+		    $('#use-instrument').prop('checked', 'checked');
+		}
+
                 setupInputHandlers();
                 gameStart.trigger('click');
             }
