@@ -123,72 +123,72 @@ require([ 'jquery', 'underscore', 'rxjs', 'backbone', 'marionette', 'mustache', 
                     });
             }
                 
-	    function normalizePortName(name) {
-		return (name || '')
-		    .trim()
-		    .toLowerCase()
-		    .replace(/\s+/g, ' ');
-	    }
+            function normalizePortName(name) {
+                return (name || '')
+                    .trim()
+                    .toLowerCase()
+                    .replace(/\s+/g, ' ');
+            }
 
-	    function isThroughPort(port) {
-		const n = normalizePortName(port.name);
-		return n.includes('through');
-	    }
+            function isThroughPort(port) {
+                const n = normalizePortName(port.name);
+                return n.includes('through');
+            }
 
-	    function usablePorts(portMap, wantedType) {
-		const ports = [];
-		for (const [, port] of portMap) {
-		    if (port.type !== wantedType) continue;
-		    if (port.state !== 'connected') continue;
-		    if (isThroughPort(port)) continue;
-		    ports.push(port);
-		}
-		return ports;
-	    }
+            function usablePorts(portMap, wantedType) {
+                const ports = [];
+                for (const [, port] of portMap) {
+                    if (port.type !== wantedType) continue;
+                    if (port.state !== 'connected') continue;
+                    if (isThroughPort(port)) continue;
+                    ports.push(port);
+                }
+                return ports;
+            }
 
 
-	    function pickPort(portMap, wantedType, preferredName) {
-		const ports = usablePorts(portMap, wantedType);
-		if (!ports.length) return null;
+            function pickPort(portMap, wantedType, preferredName) {
+                const ports = usablePorts(portMap, wantedType);
+                if (!ports.length) return null;
 
-		const wanted = normalizePortName(preferredName);
-		const exact = ports.find(p => normalizePortName(p.name) === wanted);
-		if (exact) return exact;
+                const wanted = normalizePortName(preferredName);
+                const exact = ports.find(p => normalizePortName(p.name) === wanted);
+                if (exact) return exact;
 
-		if (ports.length === 1) return ports[0];
+                if (ports.length === 1) return ports[0];
 
-		return null; // force UI selection
-	    }
+                return null; // force UI selection
+            }
 
             function onMidiSuccess(mAccess) {
 
                 midi = window.MIDI = mAccess;
 
-		console.log('Searcing for MIDI ports: Type, Name :: Volatile UID)');
+                console.log('Searcing for MIDI ports: Type, Name :: Volatile UID)');
 
-		for (const input of midi.inputs.values()) {
+                for (const input of midi.inputs.values()) {
                     console.log('INPUT, ' + input.name + ' :: ' + input.id);
                 }
 
-		for (const input of midi.inputs.values()) {
+                for (const input of midi.inputs.values()) {
                     console.log('OUTPUT, ' + input.name + ' :: ' + input.id);
                 }
 
-		// hard-coded names (not-required) as IDs are no longer reliable
-		const midiInput = pickPort(midi.inputs, 'input', 'CH345:CH345 MIDI 1 20:0');
-		const midiOutput = pickPort(midi.outputs, 'output', 'CH345:CH345 MIDI 1 20:0');
+                // hard-coded names (not-required) as IDs are no longer reliable
+                const midiInput = pickPort(midi.inputs, 'input', 'CH345:CH345 MIDI 1 20:0');
+                const midiOutput = pickPort(midi.outputs, 'output', 'CH345:CH345 MIDI 1 20:0');
 
-		// TODO force selection if these are null
-		if (midiInput) {
-		    $('#is-connected').prop('checked', 'checked');
-		}
+                // TODO force selection if these are null
+                if (midiInput) {
+                    $('#is-connected').prop('checked', 'checked');
+                }
 
-		if (midiOutput) {
-		    midiOutput.open();
-		    keyboard.output = true;
-		    keyboard.midiOut = midiOutput;
-		    $('#use-instrument').prop('checked', 'checked');
-		}
+                if (midiOutput) {
+                    midiOutput.open();
+                    keyboard.output = true;
+                    keyboard.midiOut = midiOutput;
+                    $('#use-instrument').prop('checked', 'checked');
+                }
 
                 setupInputHandlers();
                 gameStart.trigger('click');
