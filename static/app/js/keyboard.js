@@ -171,7 +171,8 @@ define(['jquery', './dispatcher', 'underscore', './audio', './util'], function($
     function sendMidiNote( noteId, duration ) {
         duration = duration || 750.0;
         var output = this.midiOut; // TODO context must be set here...
-        output.send( [0x90, noteId, 0x7f] );  // full velocity
+        // output.send( [0x90, noteId, 0x7f] );  // full velocity
+        output.send( [0x90, noteId, 0x3f] );  // half velocity
         output.send( [0x80, noteId, 0x40], window.performance.now() + duration ); // note off, half-second delay
     }
 
