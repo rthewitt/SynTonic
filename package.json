@@ -1,5 +1,9 @@
 {
     "name": "SynTonic",
     "version": "0.0.3",
-    "private": true
+    "private": true,
+    "dependencies": {
+        "express": "^5.2.1",
+        "ws": "^8.20.0"
+    }
 }
